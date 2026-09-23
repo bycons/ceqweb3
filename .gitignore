@@ -83,3 +83,8 @@ results/
 
 # temporarios do Office
 ~$*
+
+# writable: tudo gerado em tempo de execucao
+writable/*
+!writable/.htaccess
+!writable/index.html
