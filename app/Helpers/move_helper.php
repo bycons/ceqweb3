@@ -58,7 +58,7 @@ function geraMovimentoRequisicoes($movimentos, $controller)
         // envia_msg_ws($controller, $msg, 'MsgServer', session()->get('usu_id'), 1);
 
         $datmov = date('d/m/Y');
-        $codlot = $lote;
+        $codlot = trim($lote);
         $qtdmov = str_replace(['.', ','], '', $mov['qt']);
         $valida = data_br($loteval);
 

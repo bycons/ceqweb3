@@ -17,7 +17,7 @@ class Logger extends BaseConfig
      *
      * @var array|int
      */
-    public $threshold = (ENVIRONMENT === 'production') ? 4 : 9;
+    public $threshold = (ENVIRONMENT === 'production') ? [1, 2, 3, 4, 7] : 9;
 
     /**
      * --------------------------------------------------------------------------
@@ -56,7 +56,7 @@ class Logger extends BaseConfig
         \App\Log\Handlers\WorkerHandler::class => [
             'handles'        => ['info', 'error', 'debug'],
             'path'           => WRITEPATH . 'logs/cron/',
-            'filenameFormat' => 'workanalise_{date}',
+            'filenameFormat' => 'workanalise-{date}',
             'dateFormat'     => 'd/m/Y H:i:s',
         ],
 

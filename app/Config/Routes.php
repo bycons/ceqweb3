@@ -70,7 +70,7 @@ $routes->get('NotifEvento/GeraEtiqueta/(:num)/(:num)', 'Fornecedores\\NotifEvent
 
 // Controladores de Logística (Notificações SMS) — ver
 // docs/desenvolvimento/notificacoes-sms-dev.docx
-$logisticaControllers = ['NotifSmsConfig', 'NotifSmsEnviadas'];
+$logisticaControllers = ['NotifSmsConfig', 'NotifSmsEnviadas', 'CadTransportadora'];
 
 foreach ($logisticaControllers as $ctrl) {
     $routes->group($ctrl, static function ($routes) use ($ctrl) {
@@ -143,6 +143,9 @@ $routes->group('CriamPdf2026', static function ($routes) {
     $routes->match(['GET', 'POST'], 'PrintAnaRequisicao/(:any)', 'CriamPdf2026::PrintAnaRequisicao/$1', ['as' => 'CriamPdf2026_match']);
     $routes->match(['GET', 'POST'], 'PrintRequisicaoEstoq/(:any)', 'CriamPdf2026::PrintRequisicaoEstoq/$1', ['as' => 'CriamPdf2026_match_two']);
     $routes->match(['GET', 'POST'], 'PrintOcorrencia/(:any)', 'CriamPdf2026::PrintOcorrencia/$1', ['as' => 'CriamPdf2026_print_ocorrencia']);
+    // *claude* impressão do gerador de relatórios configurável, tipo DOCUMENTO
+    // (CfgRelatorio::rel_tipo_saida=DOCUMENTO) — $1=rel_id, $2=id_registro.
+    $routes->match(['GET', 'POST'], 'PrintDocumentoGenerico/(:num)/(:any)', 'CriamPdf2026::PrintDocumentoGenerico/$1/$2', ['as' => 'CriamPdf2026_print_documento']);
 });
 
 // Grupo: CriaEtiqueta
@@ -251,6 +254,7 @@ foreach ($produtoControllers as $ctrl) {
 $microControllers = [
     'Analise',
     'AnaRequisicao',
+    'AnaliseMP'
 ];
 // Grupo: Micro
 foreach ($microControllers as $ctrl) {

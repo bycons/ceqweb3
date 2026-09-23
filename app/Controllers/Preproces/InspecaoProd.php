@@ -635,11 +635,11 @@ class InspecaoProd extends BaseController
                     envia_msg_ws($this->data['controler'], "Gerando Movimentos de Estoque", 'MsgServer', session()->get('usu_id'), 1);
                     $movim = geraMovimentoRequisicoes($movs, $this->data['controler']);
                     if ($movim['status'] === 'Erro') {
-                        // $db->transRollback();
-                        // $ret['erro'] = true;
+                        $ret['erro'] = true;
                         $ret['msg']  = $movim['mensagem'];
-                        // echo json_encode($ret);
-                        continue;
+                        $db->transRollback();
+                        echo json_encode($ret);
+                        return;
                     }
                 }
                 if (! $this->requisicaoate->update($val->rpaid, $sql_save)) {
@@ -685,51 +685,6 @@ class InspecaoProd extends BaseController
         envia_msg_ws($this->data['controler'], "Processando Ocorrências", 'MsgServer', session()->get('usu_id'), 1);
         $produtosreq = $this->requisicao->getRequisicaoProdutos($postado['req_id']);
         $res = service('ocorrenciaService')->gerarOcorrencias($produtosreq, $postado['req_id']);
-
-        // foreach ($produtosreq as $val) {
-        //     $filtro = [
-        //         'req_id'   => $postado['req_id'],
-        //         'pro_id'   => $val->pro_id,
-        //         'lot_lote' => $val->lot_lote,
-        //         'oco_id'   => null,
-        //     ];
-        //     $ocorrencias = $this->common->getRegFiltro('dbEstoque', 'vw_est_requisicao_produto_ocorrencia_relac', ['*'], $filtro);
-
-        //     for ($o = 0; $o < count($ocorrencias); $o++) {
-        //         $result = [];
-        //         foreach ($ocorrencias[$o] as $key => $value) {
-        //             $result[$key] = $value;
-        //         }
-        //         $result['stt_id'] = 28;
-        //         $result['usu_criou'] = session()->get('usu_id');
-
-        //         $entity           = new EntOcoOcorrencia($result);
-        //         $salvaoco         = $this->ocorrencia->save($entity);
-
-        //         if ($salvaoco) {
-        //             $idoco                = $this->ocorrencia->getInsertID();
-        //             $data                 = $entity->toArray();
-        //             $lote                 = $this->lote->getLoteId($val->lot_lote)[0];
-        //             $data['oco_id']       = $idoco;
-        //             $data['lot_lote']     = $lote->lot_lote;
-        //             $data['lot_validade'] = $lote->lot_validade;
-        //             $data['usu_fina']     = session()->get('usu_id');
-        //             $ocoService           = service('ocorrenciaService');
-        //             $ocoService->processAfterSave($data);
-        //             $this->common->updateReg(
-        //                 'dbEstoque',
-        //                 'est_requisicao_produto_ocorrencia',
-        //                 'rpo_id = ' . $ocorrencias[$o]['rpo_id'],
-        //                 ['oco_id' => $idoco]
-        //             );
-        //         } else {
-        //             $ret['erro'] = true;
-        //             $ret['msg']  = $this->ocorrencia->errors();
-        //             echo json_encode($ret);
-        //             return;
-        //         }
-        //     }
-        // }
 
         $ret['erro'] = false;
         $ret['msg'] = 'Inspeção gravada com sucesso!';

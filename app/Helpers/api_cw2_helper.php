@@ -12,7 +12,6 @@ if (!function_exists('api_request')) {
      * @param string $method      'get' ou 'post'
      * @param array  $headers     Headers adicionais (opcional)
      * @param int    $timeout     Tempo máximo em segundos (opcional)
-     * @param bool   $httpErrors  Se false, não lança exceção para status HTTP de erro (opcional)
      *
      * @return array|null
      */
@@ -21,12 +20,10 @@ if (!function_exists('api_request')) {
         array $params = [],
         string $method = 'get',
         array $headers = ['Accept' => 'application/json'],
-        int $timeout = 10,
-        bool $httpErrors = true
+        int $timeout = 10
     ): ?array {
         $client = Services::curlrequest([
-            'timeout'     => $timeout,
-            'http_errors' => $httpErrors,
+            'timeout' => $timeout,
         ]);
 
         try {

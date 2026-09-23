@@ -116,10 +116,10 @@ class BuscasSapiens extends BaseController
     {
         $soapdep = new SoapSapiens('ceqweb_integra');
         // debug($soapdep, false);
-        // debug("Chamei uma vez ".$deposito." Prod ".$codpro,false);
+        // debug("Chamei uma vez " . $deposito . " Prod " . $codpro, false);
         $ret_deps = $soapdep->estoquePorDeposito($deposito, $codpro);
 
-        // debug($ret_deps->retorno, true);
+        // debug($ret_deps, true);
         if (isset($ret_deps->retorno)) {
             $ret = $ret_deps->retorno;
         } else {

@@ -5,7 +5,9 @@ namespace App\Controllers\Fornecedores;
 use App\Controllers\BaseController;
 use App\Entities\Fornecedores\EntOcoNotifEvento;
 use App\Entities\Fornecedores\EntOcoNotifEventoAcao;
+use App\Entities\Fornecedores\EntOcoNotifEventoAnexo;
 use App\Entities\Fornecedores\EntOcoNotifEventoProduto;
+use App\Libraries\MyCampo;
 use App\Models\CommonModel;
 use App\Models\Fornec\FornecNotifDesvioModel;
 use App\Models\Fornec\FornecNotifEventoModel;
@@ -30,7 +32,7 @@ class NotifEvento extends BaseController
 {
     /**
      * RN03.16/RN03.20 — whitelist única de anexos, usada tanto no client
-     * (MyCampo::setTipoArq(), ver montaLinhaAnexo()/pw_anexos_notif.php)
+     * (MyCampo::setTipoArq(), ver EntOcoNotifEventoAnexo::defCampos())
      * quanto na validação server-side de salvaAnexos() — mesma lista, sem
      * duplicar em dois lugares.
      */
@@ -178,6 +180,22 @@ class NotifEvento extends BaseController
             $d->usu_nome = $logCriou[$d->oco_id]['usua_alterou'] ?? '';
         }
 
+        // Botão de título "Selecionar Produtos" — confirma os ndv_id[]
+        // marcados na grid e envia por POST direto (fora do fluxo AJAX de
+        // bt_salvar/submeteForm, que espera JSON) para selecionaProdutos(),
+        // que responde com a página completa do cadastro de 4 abas — ver
+        // confirmaSelecaoProdutos() em my_fornecedores.js.
+        $btSelProdutos = new MyCampo();
+        $btSelProdutos->nome     = 'bt_sel_produtos';
+        $btSelProdutos->id       = 'bt_sel_produtos';
+        $btSelProdutos->i_cone   = '<div class="align-items-center py-1 text-start float-start font-weight-bold" style="">
+                            <i class="fa-solid fa-check" style="font-size: 2rem;" aria-hidden="true"></i></div>';
+        $btSelProdutos->i_cone  .= '<div class="align-items-start txt-bt-manut">Selecionar Produtos</div>';
+        $btSelProdutos->place    = 'Selecionar Produtos';
+        $btSelProdutos->funcChan = 'confirmaSelecaoProdutos()';
+        $btSelProdutos->classep  = 'btn-primary bt-manut btn-sm mb-2 float-end';
+
+        $this->data['botao']       = $btSelProdutos->crBotao();
         $this->data['title']       = 'Selecione os Produtos';
         $this->data['desc_metodo'] = 'Nova Notificação de Evento';
         $this->data['secoes']      = ['Seleção de Produtos'];
@@ -187,7 +205,8 @@ class NotifEvento extends BaseController
                 'fabricante'   => $fabricantePreSelecao,
             ]),
         ]];
-        $this->data['destino'] = 'selecionaProdutos';
+        $this->data['destino'] = '';
+        $this->data['scripts'] = 'my_fornecedores';
 
         echo view('vw_edicao', $this->data);
     }
@@ -264,14 +283,24 @@ class NotifEvento extends BaseController
                 'lot_validade' => $desvio->lot_validade,
                 'oco_qtd'     => $desvio->oco_qtd,
             ], false, $ordem);
+            // RN03.1/RN03.9 — a grid é só leitura pras colunas descritivas
+            // (por isso os valores crus de $desvio, sem o wrapper de
+            // label/coluna do crInput()), mas precisa embutir na linha:
+            // o hidden ndv_id[$ordem]/nvp_id[$ordem] da Entity (crOculto()
+            // não tem wrapper, então não afeta o layout) — sem isso o
+            // store() nunca recebe ndv_id e cai sempre no erro "Nenhum
+            // produto selecionado" — e o input de verdade de
+            // nvp_defeito[$ordem] (só texto puro antes, nunca era
+            // submetido).
+            $f              = $entProd->campos;
             $gridProdutos[] = [
-                $desvio->oco_data,
+                $f['ndv_id'] . $f['nvp_id'] . $desvio->oco_data,
                 $desvio->pro_codpro,
                 $desvio->pro_despro,
                 $desvio->fab_apeFab,
                 $desvio->lot_lote . '<br>' . $desvio->lot_validade,
                 $desvio->oco_qtd,
-                $desvio->ndv_descreva,
+                $f['nvp_defeito'],
             ];
         }
 
@@ -293,7 +322,8 @@ class NotifEvento extends BaseController
         $campos[1] = [
             $entEvento->campos['nev_providencias'],
             $entEvento->campos['nev_notificado'],
-            view('partials/pw_anexos_notif', ['origem' => 'PROVID', 'nev_id' => null]),
+            "<div class='col-12 float-start'>&nbsp;</div>",
+            view('partials/pw_anexos_notif', ['sufixo' => 'provid', 'linhas' => $this->montaLinhasAnexos('provid', [])]),
         ];
 
         // --- Aba 3: Parecer Final ---
@@ -301,7 +331,7 @@ class NotifEvento extends BaseController
             $entEvento->campos['nev_parecer'],
             $entEvento->campos['nev_notivisa'],
             $entEvento->campos['nev_notivisa_num'],
-            view('partials/pw_anexos_notif', ['origem' => 'PARECER', 'nev_id' => null]),
+            view('partials/pw_anexos_notif', ['sufixo' => 'parecer', 'linhas' => $this->montaLinhasAnexos('parecer', [])]),
         ];
 
         // --- Aba 4: Ações (RN03.21/RN03.22) ---
@@ -365,25 +395,30 @@ class NotifEvento extends BaseController
 
     private function montaLinhaAnexo(string $sufixo, int $ind): array
     {
-        $campo = new \App\Libraries\MyCampo();
-        $campo->objeto = 'file';
-        $campo->nome   = $campo->id = "nva_arquivo_{$sufixo}[{$ind}]";
-        $campo->label  = 'Anexo';
-        $campo->setTipoArq('.' . implode(',.', self::ANEXO_EXTENSOES_PERMITIDAS));
-
-        $del           = new \App\Libraries\MyCampo();
-        $del->nome     = $del->id = "bt_delanexo_{$sufixo}[{$ind}]";
-        $del->i_cone   = "<i class='far fa-trash-alt'></i>";
-        $del->classep  = 'btn-outline-danger btn-sm bt-exclui';
-        $del->place    = 'Excluir Anexo';
-        $del->attrdata = ['data-index' => $ind];
-        $del->funcChan = "exclui_campo('anexo_{$sufixo}', this)";
+        $f = (new EntOcoNotifEventoAnexo(null, $sufixo, $ind))->campos;
 
         return [
-            0 => $campo->crArquivo(),
+            0 => $f['arquivo'],
             1 => '',
-            2 => $del->crBotao(),
+            2 => $f['bt_del'],
         ];
+    }
+
+    /**
+     * Monta o array de $linhas (EntOcoNotifEventoAnexo::campos) consumido por
+     * partials/pw_anexos_notif.php — anexos já persistidos + 1 linha em
+     * branco no final, para novo upload. Mesmo padrão de carregaContexto()
+     * para $linhaAcoes/EntOcoNotifEventoAcao.
+     */
+    private function montaLinhasAnexos(string $sufixo, array $anexos): array
+    {
+        $linhas = [];
+        foreach (array_values($anexos) as $i => $anexo) {
+            $linhas[] = (new EntOcoNotifEventoAnexo((array) $anexo, $sufixo, $i))->campos;
+        }
+        $linhas[] = (new EntOcoNotifEventoAnexo(null, $sufixo, count($anexos)))->campos;
+
+        return $linhas;
     }
 
     /**
@@ -588,13 +623,13 @@ class NotifEvento extends BaseController
         $campos[1] = [
             $entEvento->campos['nev_providencias'],
             $entEvento->campos['nev_notificado'],
-            view('partials/pw_anexos_notif', ['origem' => 'PROVID', 'nev_id' => $id, 'anexos' => $anexosProvid]),
+            view('partials/pw_anexos_notif', ['sufixo' => 'provid', 'linhas' => $this->montaLinhasAnexos('provid', $anexosProvid)]),
         ];
         $campos[2] = [
             $entEvento->campos['nev_parecer'],
             $entEvento->campos['nev_notivisa'],
             $entEvento->campos['nev_notivisa_num'],
-            view('partials/pw_anexos_notif', ['origem' => 'PARECER', 'nev_id' => $id, 'anexos' => $anexosParecer]),
+            view('partials/pw_anexos_notif', ['sufixo' => 'parecer', 'linhas' => $this->montaLinhasAnexos('parecer', $anexosParecer)]),
         ];
         $campos[3] = [
             view('partials/pw_acoes_notif', ['linhas' => empty($linhaAcoes) ? [(new EntOcoNotifEventoAcao(null, 0, $show))->campos] : $linhaAcoes]),
@@ -662,9 +697,9 @@ class NotifEvento extends BaseController
                 throw new \Exception('É obrigatório cadastrar ao menos uma Ação (aba Ações)');
             }
 
-            $sttConcluida = $this->model->getStatusConcluidaId();
+            $sttConcluida = $this->model->getStatusId('Finalizada');
             if (!$sttConcluida) {
-                throw new \Exception('Status "Concluída" de Notificação de Evento não configurado (cfg_status)');
+                throw new \Exception('Status "Finalizada" de Notificação de Evento não configurado (cfg_status)');
             }
 
             $dadosCabecalho = [

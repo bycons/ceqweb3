@@ -103,6 +103,34 @@ class ConfigUsuarioModel extends Model
     }
 
     /**
+     * getUsuariosPorIds
+     *
+     * Retorna o nome dos usuários de Config, pelos IDs informados
+     *
+     * @param array $ids
+     * @return array
+     */
+    public function getUsuariosPorIds(array $ids)
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $db = db_connect('default');
+        $builder = $db->table('vw_cfg_usuario_relac');
+        $builder->select('usu_id, usu_nome');
+        $builder->whereIn('usu_id', $ids);
+        $rows = $builder->get()->getResultArray();
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[$r['usu_id']] = $r['usu_nome'];
+        }
+
+        return $map;
+    }
+
+    /**
      * getUsuarioSearch
      *
      * Retorna os dados do Usuário de Config, pelo termo (nome) informado

@@ -295,9 +295,29 @@ class AteRequisicao extends BaseController
             // debug($resultado, true);Q
 
             // envia_msg_ws($this->data['controler'], "Buscando estoque de origem " . $requisicao->req_deporigem, 'MsgServer', session()->get('usu_id'), 1);
+            // ═══════════════════════════════════════════════════════════════
+            // TEMPORÁRIO (2026-07-14): busca real de saldo via SOAP desabilitada.
+            // Atribui saldo fictício de 10000 para todos os produtos.
+            // Reverter removendo este bloco e descomentando o original abaixo.
+            // ═══════════════════════════════════════════════════════════════
+            // $montaSaldoFicticioTemp = function () use ($resultado): array {
+            //     $fake = [];
+            //     foreach ($resultado as $r) {
+            //         $r    = (object) $r;
+            //         $lote = trim($r->lot_lote ?? '');
+            //         $fake[] = (object) [
+            //             'codigoProduto'     => $r->pro_codpro,
+            //             'codigoLote'        => $lote !== '' ? $lote : 'SEM_LOTE',
+            //             'quantidadeEstoque' => 10000,
+            //         ];
+            //     }
+            //     return $fake;
+            // };
+
             $estoqueOrigem = $this->busca->buscaEstoqueDeposito(
                 $requisicao->req_deporigem
             );
+            // $estoqueOrigem = $montaSaldoFicticioTemp();
             $estoqueOrigem = indexarEstoque($estoqueOrigem);
             // debug($estoqueOrigem['EM042'], true);
             for ($p = 0; $p < count($resultado); $p++) {

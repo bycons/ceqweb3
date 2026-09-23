@@ -274,9 +274,9 @@ class EntOcoTratativa extends Entity
             $config['DispForm'] = 'col-12';
             $config['Ordem']    = $pos;
             $ret['stt_id'] = criaSelectRelativo(
-                'cfg_status',
+                'vw_cfg_status_relac',
                 'stt_id',
-                'stt_nome',
+                'stt_tela_status',
                 null,
                 1,
                 'oco_tipo_acao',

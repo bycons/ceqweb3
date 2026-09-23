@@ -54,6 +54,9 @@ class Familia extends BaseController
      */
     public function lista()
     {
+        // $integ = new WsCeqweb();
+        // $integ->integraFamilia();
+
         $campos = montaColunasCampos($this->data, 'fam_codFam');
         $dados_tela = $this->familias->getFamilia();
 
@@ -63,7 +66,7 @@ class Familia extends BaseController
         $familias = [
             'data' => montaListaColunasEnt($this->data, 'fam_codFam', $dados_tela, $campos[1]),
         ];
-        cache()->save('familias', $familias, 60000);
+        // cache()->save('familias', $familias, 60000);
         echo json_encode($familias);
     }
 

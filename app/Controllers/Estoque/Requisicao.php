@@ -698,9 +698,28 @@ class Requisicao extends BaseController
         );
         // debug($listaProdutos, true);
 
+        // ═══════════════════════════════════════════════════════════════════
+        // TEMPORÁRIO (2026-07-14): busca real de saldo via SOAP desabilitada.
+        // Atribui saldo fictício de 10000 para todos os produtos.
+        // Reverter removendo este bloco e descomentando o original abaixo.
+        // ═══════════════════════════════════════════════════════════════════
+        // $montaSaldoFicticioTemp = function () use ($listaProdutos): array {
+        //     $fake = [];
+        //     foreach ($listaProdutos as $p) {
+        //         $lote = trim($p->lot_lote ?? '');
+        //         $fake[] = (object) [
+        //             'codigoProduto'     => $p->pro_codpro,
+        //             'codigoLote'        => $lote !== '' ? $lote : 'SEM_LOTE',
+        //             'quantidadeEstoque' => 10000,
+        //         ];
+        //     }
+        //     return $fake;
+        // };
+
         // ESTOQUES
         envia_msg_ws($this->data['controler'], 'Buscando estoque de origem', 'MsgServer', session()->get('usu_id'), 1);
         $estorig = (array) $this->busca->buscaEstoqueDeposito($deporigem) ?? [];
+        // $estorig = $montaSaldoFicticioTemp();
         // debug($estorig, true);
         // $estorig = [$estorig];
         $estoqueOrigem = indexarEstoque($estorig);
@@ -708,6 +727,7 @@ class Requisicao extends BaseController
 
         envia_msg_ws($this->data['controler'], 'Buscando estoque de destino', 'MsgServer', session()->get('usu_id'), 1);
         $estdest = (array) $this->busca->buscaEstoqueDeposito($depdestino) ?? [];
+        // $estdest = $montaSaldoFicticioTemp();
         // $estdest = [$estdest];
         $estoqueDestino = indexarEstoque($estdest);
         // debug($estoqueDestino, true);
@@ -726,6 +746,7 @@ class Requisicao extends BaseController
                 $estoquePadrao = indexarEstoque(
                     (array) $this->busca->buscaEstoqueDeposito($deppadrao) ?? []
                 );
+                // $estoquePadrao = indexarEstoque($estoquePadrao);
                 // debug($estoquePadrao, true);
             } else {
                 envia_msg_ws($this->data['controler'], 'Depósito padrão inválido (igual à origem ou destino)', 'MsgServer', session()->get('usu_id'), 1);

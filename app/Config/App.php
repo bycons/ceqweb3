@@ -22,7 +22,7 @@ class App extends BaseConfig
      * explicitly and never rely on auto-guessing, especially in production
      * environments.
      */
-    public string $baseURL = 'https://ceqweb3.ceqnep.com.br/';
+    public string $baseURL = 'https://dev.ceqnep.com.br/';
 
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.

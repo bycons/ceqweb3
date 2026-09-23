@@ -1002,6 +1002,8 @@ function validaCodBar(obj) {
       // ── Código de LOTE ────────────────────────────────────────────────────────
     } else if (tipo === "cbLot") {
       if (saldoatual === 0) {
+        // Saldo zerado nesta linha: tenta outra linha com o mesmo codbar antes de alertar
+        if (!ultimo) return true;
         boxAlert(msgqterrada, false, "", true, 1, false);
         obj.value = "";
         obj.focus();

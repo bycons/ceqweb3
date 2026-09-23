@@ -177,6 +177,24 @@ class EntOcoOcorrencia extends Entity
 
         $ret['lot_fabricante'] = $lotfab->crInput();
 
+        // REQUISICAO (mostrar na tela) 
+        $nreq = new MyCampo('est_requisicao', 'req_numero');
+        $nreq->valor    = (isset($dados['num_req'])) ? $dados['num_req'] : '';
+        $nreq->leitura  = true;
+        $nreq->size     = 20;
+        $nreq->dispForm = 'col-6';
+
+        $ret['num_req_show'] = $nreq->crInput();
+
+        // TIPO DE REQUISICAO (mostrar na tela) 
+        $rtmon = new MyCampo('est_tipo_movimentacao', 'tmo_nome');
+        $rtmon->valor    = (isset($dados['req_tmo_nome'])) ? $dados['req_tmo_nome'] : '';
+        $rtmon->label    = 'Tipo de Requisição';
+        $rtmon->leitura  = true;
+        $rtmon->size     = 20;
+        $rtmon->dispForm = 'col-6';
+
+        $ret['req_tmo_nome_show'] = $rtmon->crInput();
 
         // PRODUTO 
         $produto           = new MyCampo('pro_sap_produto', 'pro_despro');
@@ -217,7 +235,7 @@ class EntOcoOcorrencia extends Entity
         $teor->obrigatorio = false;
         $teor->leitura     = $show;
         $teor->dispForm    = 'col-6';
-        $ret['tel_nome'] = $teor->crInput();
+        $ret['tel_nome']   = $teor->crInput();
 
         // $stat                 = new MyCampo();
         // $stat->valor          = (isset($dados['stt_nome'])) ? fmtEtiquetaCor($dados['stt_cor'], $dados['stt_nome']) : '';

@@ -245,7 +245,7 @@ class ConfRequisicao extends BaseController
         for ($p = 0; $p < count($resultado); $p++) {
             // foreach ($resultado as $p => $prod) {
             $prod = $resultado[$p];
-            // debug($prod, true);
+            // debug($prod);
             $val_cancelada = $prod->rpa_cancelada ?? 0;
             $val_atendida  = $prod->rpa_atendida ?? 0;
             $val_conferida = $prod->rpa_conferida ?? 0;
@@ -266,6 +266,21 @@ class ConfRequisicao extends BaseController
                 $prod->pre_undfabricante          = 'N';
                 $prod->pre_cblote                 = 'N';
                 $prod->pre_undlote                = 'N';
+            }
+            // debug($prod->pre_gestaoestoque);
+            if ($prod->cla_gestaoestoque == 'N') {
+                $resultado[$p]->pre_cbfabricante  = 'N';
+                $resultado[$p]->pre_undfabricante = 'N';
+                $resultado[$p]->pre_cblote        = 'N';
+                $resultado[$p]->pre_undlote       = 'N';
+                $resultado[$p]->pre_cbmisturador  = 'N';
+                $resultado[$p]->pre_undmisturador = 'N';
+                $prod->pre_cbfabricante           = 'N';
+                $prod->pre_undfabricante          = 'N';
+                $prod->pre_cblote                 = 'N';
+                $prod->pre_undlote                = 'N';
+                $prod->pre_cbmisturador           = 'N';
+                $prod->pre_undmisturador          = 'N';
             }
             // debug($prod, true);
             $btoco            = '';
@@ -372,7 +387,7 @@ class ConfRequisicao extends BaseController
             $prod->rep_id      = $prod->rep_id ?? 0;
             $prod->rep_quantia = $prod->rep_quantia ?? 0;
             if ($prod->rpa_cancelada_val > 0) {
-                $qtcaixa         = ceil($prod->rpa_atendida_val / $prod->pro_qtdemb);
+                $qtcaixa         = ceil($prod->rpa_atendida_val / ($prod->pro_qtdemb ?: 1));
                 $prod->qtd_caixa = $qtcaixa;
             } else {
                 $prod->qtd_caixa = $prod->qtd_caixa ?? 0;
@@ -396,6 +411,11 @@ class ConfRequisicao extends BaseController
             // debug($prod, true);
         }
         unset($prod);
+
+        $saldoTotal = array_sum(array_map(fn($p) => intval($p->saldo), $resultado));
+        if ($saldoTotal === 0) {
+            $this->data['forca_submit'] = true;
+        }
 
         $secao[0]    = 'Produtos';
         $campos[0][] = $fieldsini['lot_codbar'];
@@ -468,7 +488,7 @@ class ConfRequisicao extends BaseController
             }
         }
 
-        if (count($dadosAgrupados) === 0) {
+        if (count($dadosAgrupados) === 0 && $parcial) {
             session()->setFlashdata('msg', 7);
             $ret['url']  = site_url($this->data['controler']);
             $ret['erro'] = false;

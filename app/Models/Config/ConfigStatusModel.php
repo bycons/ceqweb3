@@ -64,13 +64,17 @@ class ConfigStatusModel extends Model
         $db = db_connect('default');
         $builder = $db->table($this->view);
         $builder->select('*');
-    
+
         // Aplica filtro de ativo SOMENTE se informado
         if ($ativo !== null) {
             $builder->where('stt_ativo', $ativo);
         }
-    
+
         if ($stt_id) {
+            if (is_array($stt_id)) {
+                $builder->whereIn('stt_id', $stt_id);
+                return $builder->get()->getResult();
+            }
             $builder->where('stt_id', $stt_id);
             return $builder->get()->getFirstRow();
         }
@@ -165,4 +169,46 @@ class ConfigStatusModel extends Model
         );
     }
 
+    /**
+     * Resolve o `tel_controler` da tela à qual um status pertence, via JOIN
+     * com `cfg_tela` pelo `tel_id` do próprio status (`cfg_status.tel_id`).
+     * Usado quando uma ação "Alterar Status" (T12 —
+     * `OcoTrataOcorrencia::resolveAlteracoesStatus()`) precisa saber, a
+     * partir do `stt_id` escolhido, a qual tela esse status pertence — e
+     * portanto qual registro deve ser atualizado (Produto, Lote, etc.).
+     * `tel_controler` é o mesmo valor usado no roteamento
+     * (`LoginFilter::before()`/`ConfigTelaModel::getTelaSearch()`), ex.:
+     * 'Produto', 'Lote'.
+     */
+    public function getTelaControlerDoStatus(int $stt_id): ?string
+    {
+        $db = db_connect('default');
+
+        $row = $db->table('cfg_status st')
+            ->select('t.tel_controler')
+            ->join('cfg_tela t', 't.tel_id = st.tel_id')
+            ->where('st.stt_id', $stt_id)
+            ->get()
+            ->getRow();
+
+        return $row->tel_controler ?? null;
+    }
+
+    public function getStatusPorIds(array $sttIds)
+    {
+        if (empty($sttIds)) {
+            return [];
+        }
+
+        $rows = $this->asArray()
+            ->whereIn('stt_id', $sttIds)
+            ->findAll();
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[$r['stt_id']] = $r;
+        }
+
+        return $map;
+    }
 }

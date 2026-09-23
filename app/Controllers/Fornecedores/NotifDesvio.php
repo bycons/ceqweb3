@@ -99,7 +99,6 @@ class NotifDesvio extends BaseController
     public function show($id)
     {
         $dados = $this->model->getNotifDesvio($id);
-
         if (!$dados) {
             throw new \Exception('Desvio de Qualidade não encontrado');
         }
@@ -109,7 +108,6 @@ class NotifDesvio extends BaseController
         // usuário que criou o registro de T42.
         $log             = buscaLogTabela('oco_ocorrencia', [$dados->oco_id]);
         $dados->usu_nome = $log[$dados->oco_id]['usua_alterou'] ?? null;
-
         $entity = new EntOcoNotifDesvio((array) $dados, true);
 
         $colunas = [
@@ -127,6 +125,7 @@ class NotifDesvio extends BaseController
             'center',
             'end',
         ];
+        // debug($dados, true);
 
         $prods[] = [
             $dados->pro_codpro,
@@ -145,6 +144,7 @@ class NotifDesvio extends BaseController
             'maxHeig'  => '20vh'
         ];
 
+        // debug($data, true);
 
         $campos[0] = [];
         $campos[0][]     = $entity->campos['ndv_id'];
@@ -156,9 +156,11 @@ class NotifDesvio extends BaseController
         $campos[0][]     = $entity->campos['usu_nome'];
         $campos[0][]     = $entity->campos['tel_nome'];
         $campos[0][]     = $entity->campos['ndv_local'];
+        $campos[0][]     = $entity->campos['ndv_descreva'];
+        // debug($campos, true);
 
         $campos[0][]     = view('partials/pw_show_produtos', $data);
-        $campos[0][]     = $entity->campos['ndv_descreva'];
+        // debug($campos, true);
 
         $this->data['desc_edicao'] = 'Desvio n° ' . str_pad($id, 6, '0', STR_PAD_LEFT)
             . ' - ' . fmtEtiquetaCor($dados->stt_cor, $dados->stt_nome, 1);
@@ -233,9 +235,9 @@ class NotifDesvio extends BaseController
         $campos[0][]     = $entity->campos['usu_nome'];
         $campos[0][]     = $entity->campos['tel_nome'];
         $campos[0][]     = $entity->campos['ndv_local'];
+        $campos[0][]     = $entity->campos['ndv_descreva'];
 
         $campos[0][]     = view('partials/pw_show_produtos', $data);
-        $campos[0][]     = $entity->campos['ndv_descreva'];
 
         $this->data['desc_edicao'] = 'Desvio n° ' . str_pad($id, 6, '0', STR_PAD_LEFT)
             . ' - ' . fmtEtiquetaCor($dados->stt_cor, $dados->stt_nome, 1);
@@ -281,7 +283,7 @@ class NotifDesvio extends BaseController
             $dadosUpdate = [
                 'ndv_local'    => $postado['ndv_local'] ?? '',
                 'ndv_descreva' => $postado['ndv_descreva'] ?? '',
-                'stt_id'       => $this->model->getStatusConcluidaId(),
+                'stt_id'       => $this->model->getStatusId('Concluído'),
             ];
 
             if (!$this->model->update($postado['ndv_id'], $dadosUpdate)) {

@@ -25,7 +25,7 @@ class EntOcoNotifEvento extends Entity
         'nev_providencias'  => null,
         'nev_notificado'    => null,
         'nev_parecer'       => null,
-        'nev_notivisa'      => 'N',
+        'nev_notivisa'      => 'S',
         'nev_notivisa_num'  => null,
         'stt_id'            => null,
         'usu_criou'         => null,
@@ -72,6 +72,7 @@ class EntOcoNotifEvento extends Entity
 
         $fornecedor              = new MyCampo('oco_notif_evento', 'nev_fornecedor');
         $fornecedor->valor       = $dados['nev_fornecedor'] ?? '';
+        $fornecedor->objeto        = 'input';
         $fornecedor->obrigatorio = true;
         $fornecedor->leitura     = $show;
         $fornecedor->minimo      = 5;
@@ -95,7 +96,7 @@ class EntOcoNotifEvento extends Entity
         $providencias->maximo      = 500;
         $providencias->linhas      = 4;
         $providencias->colunas     = 60;
-        $providencias->dispForm    = 'col-12';
+        $providencias->dispForm    = 'col-6';
         $ret['nev_providencias'] = $providencias->crTexto();
 
         $notificado              = new MyCampo('oco_notif_evento', 'nev_notificado');
@@ -116,26 +117,19 @@ class EntOcoNotifEvento extends Entity
         $parecer->maximo      = 500;
         $parecer->linhas      = 4;
         $parecer->colunas     = 60;
-        $parecer->dispForm    = 'col-12';
+        $parecer->dispForm    = 'col-4';
         $ret['nev_parecer'] = $parecer->crTexto();
 
-        // RN03.18 — toggle Notivisa (S/N), com campo condicional nev_notivisa_num
-        // (RN03.19) exibido via mesmo padrão de campo condicional já usado em
-        // T9/T12 (verificaTipoAcao()/JS equivalente — aqui um onchange simples,
-        // não precisa reaproveitar verificaTipoAcao() em si, que é específico
-        // de tpa_tipo; ver my_fornecedores.js:mostraNotivisaNum()).
+        $simnao['S'] = 'Sim';
+        $simnao['N'] = 'Não';
         $notivisa              = new MyCampo('oco_notif_evento', 'nev_notivisa');
-        // valor = valor SUBMETIDO quando marcado (fixo 'S'); selecionado =
-        // valor ATUAL do registro, usado por crCheckbox() só pra decidir se
-        // nasce marcado ou não. Antes os dois vinham iguais ao dado atual
-        // (sempre 'N'==selecionado ou 'S'==selecionado), o que fazia o
-        // checkbox nascer sempre marcado (bug corrigido nesta rodada).
         $notivisa->valor       = 'S';
-        $notivisa->selecionado = $dados['nev_notivisa'] ?? 'N';
+        $notivisa->selecionado = $dados['nev_notivisa'] ?? 'S';
         $notivisa->leitura     = $show;
-        $notivisa->dispForm    = 'col-3';
+        $notivisa->opcoes      = $simnao;
+        $notivisa->dispForm    = 'col-2';
         $notivisa->funcChan    = 'mostraNotivisaNum(this)';
-        $ret['nev_notivisa'] = $notivisa->crCheckbox();
+        $ret['nev_notivisa'] = $notivisa->cr2opcoes();
 
         $notivisaNum              = new MyCampo('oco_notif_evento', 'nev_notivisa_num');
         $notivisaNum->valor       = $dados['nev_notivisa_num'] ?? '';

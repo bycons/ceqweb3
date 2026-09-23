@@ -162,11 +162,17 @@ class CfgTela extends BaseController
     {
         $dados_tela = (array) $this->tela->getTelaId($id)[0];
         $this->model_atual = $this->tela;
-        // debug($dados_tela['tel_model'], true);
+        // debug($dados_tela['tel_model']);
         if (isset($dados_tela['tel_model']) && $dados_tela['tel_model'] != null) {
             $model = $dados_tela['tel_model'];
-            $nomeModel = localizaModel($model);
+            $compl_model = substr($model, 0, 6);
+            $pasta = "App\\Models\\" . $compl_model . "\\";
+            // debug($pasta . $model);
+            $nomeModel = $pasta . $model;
             $this->model_atual = new $nomeModel();
+
+            // $this->model_atual = new model($pasta . $model);
+            // var_dump($this->model_atual);  
         }
         // debug($this->model_atual);
         $tabela = $this->model_atual->table;
@@ -274,7 +280,9 @@ class CfgTela extends BaseController
         // debug($dados_tela['tel_model']);
         if (isset($dados_tela['tel_model']) && $dados_tela['tel_model'] != null) {
             $model = $dados_tela['tel_model'];
-            $this->model_atual = model(localizaModel($model));
+            $compl_model = substr($model, 0, 6);
+            $pasta = "App\\Models\\" . $compl_model . "\\";
+            $this->model_atual = model($pasta . $model);
         }
         $tabela = $this->model_atual->table;
         $view   = $this->model_atual->view;

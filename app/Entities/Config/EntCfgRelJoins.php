@@ -15,6 +15,10 @@ class EntCfgRelJoins extends Entity
         'rjo_alias_join'  => null,
         'rjo_condicao_on' => null,
         'rjo_ordem'       => 0,
+        // *claude* CABECALHO (joins da tabela base) | TABELA (joins da tabela
+        // de detalhe) — só relevante para relatórios rel_tipo_saida=DOCUMENTO;
+        // Tabular sempre grava/lê CABECALHO (default retrocompatível).
+        'rjo_grupo'       => 'CABECALHO',
     ];
 
     public array $campos = [];

@@ -517,7 +517,7 @@ class OcoTrataOcorrencia extends BaseController
             return $ret; // já notificado — não duplica
         }
 
-        $sttPendente = $modelNotif->getStatusPendenteId();
+        $sttPendente = $modelNotif->getStatusId('Pendente');
         if (!$sttPendente) {
             $ret['erro'] = true;
             $ret['msg']  = 'Status "Pendente" de Desvio de Qualidade não configurado (cfg_status)';

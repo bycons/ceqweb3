@@ -108,9 +108,11 @@ class EntOcoNotifEventoProduto extends Entity
         $defeito->valor       = $dados['nvp_defeito'] ?? '';
         $defeito->obrigatorio = true;
         $defeito->leitura     = $show;
+        $defeito->linhas      = 3;
+        $defeito->colunas      = 80;
         $defeito->minimo      = 5;
         $defeito->maximo      = 200;
-        $defeito->dispForm    = 'col-10';
+        $defeito->dispForm    = 'col-12';
         $ret['nvp_defeito'] = $defeito->crInput();
 
         return $ret;

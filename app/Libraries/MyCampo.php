@@ -755,8 +755,16 @@ class MyCampo
     {
         $colunas = $this->resolverColunas();
         $mb      = str_contains($this->classep, 'semmb') ? 'm-0' : 'mb-3';
+        $ht       = 'nãoauto';
 
-        $html  = "<div id='ig_{$this->id}' class='row {$colunas} float-start align-items-center d-inline-flex {$mb}'>";
+        // groupant/grouppos costumam trazer conteúdo mais alto que uma linha
+        // (preview de imagem, label de upload, etc.) — sem h-auto aqui, a
+        // div principal (altura fixa de input) corta esse conteúdo.
+        if ($this->tipo === 'check' || $groupant !== '' || $grouppos !== '') {
+            $ht = 'h-auto';
+        }
+
+        $html  = "<div id='ig_{$this->id}' class='row {$colunas} float-start align-items-center d-inline-flex {$mb} {$ht}'>";
 
         // Texto informativo acima do label
         if ($this->infotop !== '') {
@@ -827,6 +835,20 @@ class MyCampo
             str_contains($this->dispForm, '3col') => 'col-4 col-lg-4',
             str_contains($this->dispForm, '2col') => 'col-6 col-lg-6',
             default                               => 'col-12 col-lg-12',
+        };
+    }
+
+    /**
+     * Retorna a classe de coluna Bootstrap para cada item de um grupo de opções
+     * (checkbutton, radio, radiobutton), de acordo com a quantidade de opções:
+     * 1 opção = col-12, 2 = col-6, 3 = col-4, mais de 3 = col-12.
+     */
+    private function resolverColunaOpcao(): string
+    {
+        return match (count($this->opcoes)) {
+            2       => 'col-6',
+            3       => 'col-4',
+            default => 'col-12',
         };
     }
 
@@ -938,23 +960,39 @@ class MyCampo
     public function crShow(): string
     {
         $altu = isset($this->alturashow) && $this->alturashow > 0
-            ? "{$this->alturashow}px"
+            ? "{$this->alturashow}rem"
             : '33.1px';
 
-        $larg = $this->largura > 0 ? "{$this->largura}ch" : '100%';
+        $larg = $this->largura > 0 ? "{$this->largura}ch" : '50%';
 
         $html  = "<div class='row {$this->dispForm} align-items-center float-start d-inline-flex'>";
         if ($this->label !== '') {
             $html .= $this->crLabel();
         }
-        $html .= "<div class='form-control d-flex align-items-center'
-                    style='width: {$larg} !important; min-height: {$altu} !important;
-                    padding: 0.375rem 0.75rem !important;
-                    background-color: #e9ecef; opacity: 1; cursor: not-allowed;'>";
+        $html .= "<div class='form-control disabled'
+                    style='width: {$larg} !important; height: {$altu} !important'>";
         $html .= $this->valor;
         $html .= '</div>';
         $html .= '</div>';
 
+        return $html;
+    }
+
+    /**
+     * Renderiza um título/rótulo de seção, sem caixa de campo.
+     * Útil para separar visualmente blocos de campos relacionados dentro
+     * de um mesmo formulário (ex: "Dias da Semana:", "Despacho:").
+     * Diferente de crShow(), não desenha a div .form-control cinza —
+     * é só o texto do label, ocupando a largura de dispForm.
+     */
+    public function crTitulo(): string
+    {
+        $colunas = $this->resolverColunas();
+    
+        $html  = "<div class='row {$colunas} float-start d-inline-flex mt-2 mb-1'>";
+        $html .= "<div class='ms-2'>" . esc($this->label) . '</div>';
+        $html .= '</div>';
+    
         return $html;
     }
 
@@ -1091,7 +1129,7 @@ class MyCampo
             $this->propriedades();
 
             $label  = "<label class='btn {$this->classep} fs-4' for='{$id}'> {$textoLabel} </label>";
-            $itens .= "<div class='d-inline-flex me-2 col-12'>";
+            $itens .= "<div class='d-inline-flex me-2 {$this->resolverColunaOpcao()}'>";
             $itens .= form_checkbox($this->field, '', $checked) . $label;
             $itens .= '</div>';
             $cont++;
@@ -1126,6 +1164,8 @@ class MyCampo
         $itens = '';
         $cont  = 0;
 
+
+
         foreach ($this->opcoes as $valor => $textoLabel) {
             $id                = "{$this->id}[{$cont}]";
             $this->selecionado ??= $valor;
@@ -1146,7 +1186,7 @@ class MyCampo
             $this->propriedades();
 
             $label  = "<label class='form-check-label px-1 m-auto mx-0' for='{$id}'> {$textoLabel} </label>";
-            $itens .= "<div class='d-inline-flex {$this->classep}' style='width: auto'>";
+            $itens .= "<div class='d-inline-flex {$this->classep} {$this->resolverColunaOpcao()}'>";
             $itens .= form_radio($this->field) . $label;
             $itens .= '</div>';
             $cont++;
@@ -1191,7 +1231,7 @@ class MyCampo
             }
 
             $label  = "<label class='btn {$this->classep} fs-4' for='{$id}'> {$textoLabel} </label>";
-            $itens .= "<div class='d-inline-flex me-2 col-12'>";
+            $itens .= "<div class='d-inline-flex me-2 {$this->resolverColunaOpcao()}'>";
             $itens .= form_radio($this->field, '', $checked) . $label;
             $itens .= '</div>';
             $cont++;
@@ -2071,7 +2111,7 @@ class MyCampo
         if (! $this->leitura) {
             $textoBtn = $this->valor === ''
                 ? "<i class='fas fa-file'></i> Clique para selecionar Arquivo de " . esc($this->label)
-                : "<i class='fas fa-file'></i> Clique para SUBSTITUIR o Arquivo de " . esc($this->label);
+                : "<i class='fas fa-file'></i> Clique para SUBSTITUIR o Arquivo de " . esc($this->label) . "<br>" . esc($this->valor);
 
             $groupant .= "<label id='lbl_{$this->id}' class='btn btn-primary'
                             style='white-space: normal;width:{$this->size}px;padding:0.8em;'>

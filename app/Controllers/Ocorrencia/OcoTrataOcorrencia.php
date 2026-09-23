@@ -14,6 +14,11 @@ use App\Models\Ocorre\OcorreSubtOcorrenciaModel;
 use App\Models\Ocorre\OcorreTipoAcaoModel;
 use App\Models\Fornec\FornecNotifDesvioModel;
 use App\Models\Produt\ProdutProdutoModel;
+use App\Models\Produt\ProdutLoteModel;
+use App\Models\Config\ConfigStatusModel;
+use App\Models\Estoqu\EstoquRequisicaoModel;
+use App\Models\Estoqu\EstoquRequisicaoProdutoModel;
+use App\Models\Estoqu\EstoquRequisicaoProdutoAtendimentoModel;
 
 class OcoTrataOcorrencia extends BaseController
 {
@@ -76,18 +81,18 @@ class OcoTrataOcorrencia extends BaseController
         // Monta definição dos campos da listagem
         $campos = montaColunasCampos($this->data, 'oco_id');
         $dados  = $this->ocorrencia->getListaPendente([28, 37]);
+        // Filtra por perfil
+        $dados = filtrarPorPerfil($dados);
 
         // Caso não existam registros
         if (! $dados) {
             return $this->response->setJSON(['data' => []]);
         }
-        foreach ($dados as $item) {
-            unset($item->oco_ativo);
-        }
-        // debug($dados, true); 
 
         $oco_ids    = array_map(fn($o) => $o->oco_id, $dados);
-        $logGeracao = buscaLogTabela('oco_ocorrencia', $oco_ids);
+        // debug($oco_ids);
+        $logGeracao = buscaLogTabelaFirst('oco_ocorrencia', $oco_ids);
+        // debug($logGeracao, true);
 
         $this->data['exclusao']    = false; // não tem exclusão
         $this->data['edicao']      = false; // não tem edição
@@ -97,10 +102,11 @@ class OcoTrataOcorrencia extends BaseController
 
         // Processa cada ocorrência
         foreach ($dados as $nov) {
-
+            unset($nov->oco_ativo);
             // Usuário que realizou a última alteração
-            $usuLog        = $logGeracao[$nov->oco_id]['usua_alterou'] ?? '';
-            $nov->usu_nome = $usuLog;
+            if ($nov->usu_nome == null) {
+                $nov->usu_nome    = $logGeracao[$nov->oco_id]['usua_alterou'] ?? '';
+            }
 
             // // Define usuário de finalização se estiver finalizada
             // if ((int) $nov->stt_id === 30) {
@@ -209,6 +215,7 @@ class OcoTrataOcorrencia extends BaseController
         $fields    = $entoco->campos;
         $contOcorr = new OcoOcorrencia();
         $secao[0]  = 'Dados Gerais';
+        // debug($dados, true);
         $campos    = $contOcorr->showCabecalho($dados);
 
         $etiqueta = fmtEtiquetaCor($dados->stt_cor, $dados->stt_nome, 1);
@@ -331,10 +338,11 @@ class OcoTrataOcorrencia extends BaseController
                     $valor->msg  = $retAcao['msg'] ?? null;
                     break;
                 case 4:
-                    // RN03.18 — "Alterar Status" altera o status do PRODUTO
-                    // (pro_sap_produto.stt_id, pelo pro_id da ocorrência), não
-                    // o status da ocorrência. O stt_id alvo é resolvido em
-                    // resolveStatusProduto() e gravado após o loop.
+                    // RN03.18 — "Alterar Status" altera o status de OUTRO
+                    // registro (não o da própria ocorrência), a depender da
+                    // TELA à qual o stt_id escolhido pertence (Produtos ->
+                    // pro_sap_produto, Lotes -> pro_sap_lote). Resolvido em
+                    // resolveAlteracoesStatus() e gravado após o loop.
                     break;
                 case 5:
                     // RN02.3 de T42 — "Notificação do Fornecedor": cria
@@ -343,6 +351,36 @@ class OcoTrataOcorrencia extends BaseController
                     // Ver docs/desenvolvimento/fornecedores-t42-t43-dev.md,
                     // decisão 3.2.
                     $retAcao     = $this->gerarNotificacaoDesvio($postado);
+                    $valor->erro = $retAcao['erro'] ?? false;
+                    $valor->msg  = $retAcao['msg'] ?? null;
+                    break;
+                case 6:
+                    // "Cancelar Atendimento" — exclui o registro de
+                    // atendimento do produto nesta requisição e recalcula o
+                    // status da requisição (Pendente/Atendido Parcial). Ver
+                    // cancelarAtendimentoRequisicao().
+                    $retAcao     = $this->cancelarAtendimentoRequisicao($postado);
+                    $valor->erro = $retAcao['erro'] ?? false;
+                    $valor->msg  = $retAcao['msg'] ?? null;
+                    break;
+                case 7:
+                    // "Cancelar Conferência" — limpa rpa_conferida/
+                    // rpa_data_conferencia do atendimento deste produto
+                    // nesta requisição (e rpa_aprovada/rpa_data_inspecao, se
+                    // já preenchidos — não há inspeção válida sem
+                    // conferência) e recalcula o status da requisição. Ver
+                    // cancelarConferenciaRequisicao().
+                    $retAcao     = $this->cancelarConferenciaRequisicao($postado);
+                    $valor->erro = $retAcao['erro'] ?? false;
+                    $valor->msg  = $retAcao['msg'] ?? null;
+                    break;
+                case 8:
+                    // "Cancelar Inspeção" — limpa rpa_aprovada/
+                    // rpa_data_inspecao do atendimento deste produto nesta
+                    // requisição (rpa_conferida não é tocado) e recalcula o
+                    // status da requisição. Ver
+                    // cancelarInspecaoRequisicao().
+                    $retAcao     = $this->cancelarInspecaoRequisicao($postado);
                     $valor->erro = $retAcao['erro'] ?? false;
                     $valor->msg  = $retAcao['msg'] ?? null;
                     break;
@@ -403,9 +441,10 @@ class OcoTrataOcorrencia extends BaseController
             try {
                 // PASSO 4 — Resumo (compatibilidade): primeiro valor não
                 // vazio, entre as ações desta rodada, grava em
-                // oco_ocorrencia.oco_justi / pro_sap_produto.stt_id.
-                $justificativa = $this->resolveJustificativa($acoesExecutar);
-                $sttIdProduto  = $this->resolveStatusProduto($acoesExecutar);
+                // oco_ocorrencia.oco_justi / no registro (Produto, Lote...)
+                // da tela a que o status "Alterar Status" pertence.
+                $justificativa    = $this->resolveJustificativa($acoesExecutar);
+                $alteracoesStatus = $this->resolveAlteracoesStatus($acoesExecutar, $postado);
 
                 // PASSO 5 — Status final da ocorrência, conforme execução
                 // real (não mais previsão fixa 29/30).
@@ -422,8 +461,8 @@ class OcoTrataOcorrencia extends BaseController
 
                 $this->ocorrencia->update($postado['oco_id'], $sql_save);
 
-                if ($sttIdProduto !== null) {
-                    (new ProdutProdutoModel())->update($postado['pro_id'], ['stt_id' => $sttIdProduto]);
+                foreach ($alteracoesStatus as $alteracao) {
+                    (new $alteracao['model']())->update($alteracao['id'], ['stt_id' => $alteracao['stt_id']]);
                 }
 
                 $db->transCommit();
@@ -435,6 +474,10 @@ class OcoTrataOcorrencia extends BaseController
                 $db->transRollback();
                 $retTrat['erro'] = true;
                 $retTrat['msg']  = $e->getMessage();
+                // Sem isto, uma falha aqui no fluxo automático
+                // (processAfterSave) fica muda: o retorno é descartado pelo
+                // chamador e não sobra rastro nenhum para diagnosticar.
+                log_message('error', 'OcoTrataOcorrencia::store() falhou ao resolver status final (oco_id=' . ($postado['oco_id'] ?? '?') . '): ' . $e);
             }
         } else {
             $retTrat['erro'] = true;
@@ -446,7 +489,13 @@ class OcoTrataOcorrencia extends BaseController
         // CodeIgniter (CodeIgniter::gatherOutput() só usa o retorno quando é
         // string ou ResponseInterface), resultando em corpo de resposta
         // vazio. Chamada automática (OcorrenciaService::processAfterSave())
-        // ignora o retorno, então não há problema em sempre devolver JSON.
+        // instancia o controller manualmente (sem passar por
+        // initController()), então $this->response não existe nesse
+        // contexto — ignora o retorno, só devolve o array.
+        if ($automatica) {
+            return $retTrat;
+        }
+
         return $this->response->setJSON($retTrat);
     }
 
@@ -663,27 +712,67 @@ class OcoTrataOcorrencia extends BaseController
     }
 
     /**
-     * RN03.18 — Resolve o stt_id do PRODUTO (pro_sap_produto.stt_id) ao
-     * concluir a tratativa: busca, entre as ações desta rodada, alguma do
-     * tipo "Alterar Status" (tpa_tipo=4), e usa o stt_id já resolvido na
-     * própria ação (vindo do catálogo, no seed, ou editado pelo usuário na
-     * tratativa — ver montaAcoesManuais()/montaAcoesAutomaticas()). Retorna
-     * null se nenhuma ação "Alterar Status" foi processada nesta rodada
-     * (produto não é alterado).
+     * RN03.18 — Mapa das telas cujo status pode ser alterado por uma ação
+     * "Alterar Status" (tpa_tipo=4) da tratativa. Chave = `tel_controler`
+     * (mesmo valor usado no roteamento — ver
+     * `ConfigStatusModel::getTelaControlerDoStatus()`); valor = model a
+     * atualizar e campo do POST da tratativa que traz o id do registro
+     * daquela tela. Extensível: uma tela nova só precisa de uma entrada
+     * aqui, sem tocar no restante do fluxo.
      */
-    private function resolveStatusProduto(array $acoesExecutar): ?int
+    private const TELAS_STATUS_ALTERAVEL = [
+        'Produto' => ['model' => ProdutProdutoModel::class, 'campoId' => 'pro_id'],
+        'Lote'    => ['model' => ProdutLoteModel::class,    'campoId' => 'lot_id'],
+    ];
+
+    /**
+     * RN03.18 — Resolve, para cada ação "Alterar Status" (tpa_tipo=4)
+     * processada nesta rodada, QUAL registro deve ter o status alterado: o
+     * destino não é fixo (não é sempre o Produto) — depende da TELA à qual o
+     * stt_id escolhido na ação pertence (cfg_status.tel_id ->
+     * cfg_tela.tel_controler, resolvido via
+     * ConfigStatusModel::getTelaControlerDoStatus()). Um stt_id de uma
+     * status de tela "Produto" altera pro_sap_produto; um de tela "Lote"
+     * altera pro_sap_lote; ver self::TELAS_STATUS_ALTERAVEL.
+     *
+     * stt_id já vem resolvido na própria ação (catálogo, seed, ou editado
+     * pelo usuário — ver montaAcoesManuais()/montaAcoesAutomaticas()).
+     * Primeiro valor encontrado por tela "vence" (mesmo critério de
+     * resolveJustificativa()); status de uma tela sem entrada em
+     * TELAS_STATUS_ALTERAVEL, ou sem o id do registro correspondente no
+     * POST, é ignorado (não altera nada).
+     *
+     * @return array<string, array{model: string, id: mixed, stt_id: int}>
+     */
+    private function resolveAlteracoesStatus(array $acoesExecutar, array $postado): array
     {
+        $statusModel = new ConfigStatusModel();
+        $alteracoes  = [];
+
         foreach ($acoesExecutar as $acao) {
-            if ((int) $acao->tpa_tipo !== 4) {
+            if ((int) $acao->tpa_tipo !== 4 || empty($acao->stt_id)) {
                 continue;
             }
 
-            if (!empty($acao->stt_id)) {
-                return (int) $acao->stt_id;
+            $telController = $statusModel->getTelaControlerDoStatus((int) $acao->stt_id);
+            $destino       = self::TELAS_STATUS_ALTERAVEL[$telController] ?? null;
+            if ($destino === null || isset($alteracoes[$telController])) {
+                continue;
             }
+
+            $registroId = $postado[$destino['campoId']] ?? null;
+            if (empty($registroId)) {
+                continue;
+            }
+
+            $alteracoes[$telController] = [
+                'model'  => $destino['model'],
+                'id'     => $registroId,
+                'stt_id' => (int) $acao->stt_id,
+            ];
         }
 
-        return null;
+        return $alteracoes;
     }
 
     /**
@@ -766,7 +855,7 @@ class OcoTrataOcorrencia extends BaseController
             return $ret; // já notificado — não duplica
         }
 
-        $sttPendente = $modelNotif->getStatusPendenteId();
+        $sttPendente = $modelNotif->getStatusId('Pendente');
         if (!$sttPendente) {
             $ret['erro'] = true;
             $ret['msg']  = 'Status "Pendente" de Desvio de Qualidade não configurado (cfg_status)';
@@ -784,6 +873,178 @@ class OcoTrataOcorrencia extends BaseController
             'stt_id'    => $sttPendente,
             'usu_criou' => session()->get('usu_id'),
         ]);
+
+        return $ret;
+    }
+
+    /**
+     * tpa_tipo=6 — "Cancelar Atendimento": ao tratar uma ocorrência aberta
+     * sobre um item já atendido de uma requisição, exclui o registro de
+     * atendimento desse item (est_requisicao_produto_atendimento) e
+     * recalcula o status da requisição:
+     *  - Pendente (stt_id=4) se, após a exclusão, nenhum item da
+     *    requisição restar atendido;
+     *  - Atendido Parcial (stt_id=21) se ainda houver ao menos um item
+     *    atendido.
+     * Mesmos stt_id já usados para esses status em
+     * AteRequisicao::atender()/Requisicao::store().
+     *
+     * `rep_id` vem da própria ocorrência (getOcorrencia() — mesma coluna já
+     * usada em OcoOcorrencia::edit() para bloquear alteração de ocorrência
+     * vinculada a requisição, RN04.1): identifica de forma inequívoca a
+     * linha de est_requisicao_produto (e portanto o atendimento) a cancelar,
+     * sem precisar cruzar req_id+pro_id+lot_id.
+     */
+    private function cancelarAtendimentoRequisicao(array $postado): array
+    {
+        $ret = ['erro' => false];
+
+        $dados = $this->ocorrencia->getOcorrencia($postado['oco_id']);
+        if (empty($dados->rep_id) || empty($dados->req_id)) {
+            $ret['erro'] = true;
+            $ret['msg']  = 'Ocorrência sem vínculo com Requisição — não é possível cancelar o atendimento.';
+            return $ret;
+        }
+
+        $db = \Config\Database::connect('dbEstoque');
+        $db->transBegin();
+
+        try {
+            $db->table('est_requisicao_produto_atendimento')
+                ->where('rep_id', $dados->rep_id)
+                ->delete();
+
+            $totalItens = count((new EstoquRequisicaoProdutoModel())->getRequisicaoProdutos((int) $dados->req_id));
+            $pendencias = (new EstoquRequisicaoProdutoAtendimentoModel())->getRequisicaoPendencias((int) $dados->req_id);
+            $pendente   = (int) ($pendencias[0]['pendente_atendimento'] ?? $totalItens);
+
+            $novoStatus = ($pendente >= $totalItens) ? 4 : 21;
+
+            (new EstoquRequisicaoModel())->update((int) $dados->req_id, ['stt_id' => $novoStatus]);
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            $ret['erro'] = true;
+            $ret['msg']  = $e->getMessage();
+        }
+
+        return $ret;
+    }
+
+    /**
+     * tpa_tipo=7 — "Cancelar Conferência": ao tratar uma ocorrência aberta
+     * sobre um item já conferido de uma requisição, limpa
+     * rpa_conferida/rpa_data_conferencia do atendimento desse item
+     * (est_requisicao_produto_atendimento, identificado por rep_id — mesmo
+     * critério de cancelarAtendimentoRequisicao()). Se o item já havia sido
+     * inspecionado (rpa_aprovada/rpa_data_inspecao preenchidos), desfaz
+     * também — não há inspeção válida sem conferência; o update é
+     * incondicional (limpar um campo já nulo é inofensivo), sempre
+     * restrito ao rep_id deste produto nesta requisição. Recalcula o
+     * status da requisição:
+     *  - Atendida, aguardando Conferência (stt_id=18) se, após a
+     *    exclusão, nenhum item da requisição restar conferido;
+     *  - Conferência Parcial (stt_id=24) se ainda houver ao menos um item
+     *    conferido.
+     * Mesmos stt_id já usados para esses status em
+     * AteRequisicao::atender()/ConfRequisicao::conferir().
+     */
+    private function cancelarConferenciaRequisicao(array $postado): array
+    {
+        $ret = ['erro' => false];
+
+        $dados = $this->ocorrencia->getOcorrencia($postado['oco_id']);
+        if (empty($dados->rep_id) || empty($dados->req_id)) {
+            $ret['erro'] = true;
+            $ret['msg']  = 'Ocorrência sem vínculo com Requisição — não é possível cancelar a conferência.';
+            return $ret;
+        }
+
+        $db = \Config\Database::connect('dbEstoque');
+        $db->transBegin();
+
+        try {
+            $db->table('est_requisicao_produto_atendimento')
+                ->where('rep_id', $dados->rep_id)
+                ->update([
+                    'rpa_conferida'        => null,
+                    'rpa_data_conferencia' => null,
+                    'rpa_aprovada'         => null,
+                    'rpa_data_inspecao'    => null,
+                ]);
+
+            $totalItens = count((new EstoquRequisicaoProdutoModel())->getRequisicaoProdutos((int) $dados->req_id));
+            $pendencias = (new EstoquRequisicaoProdutoAtendimentoModel())->getRequisicaoPendencias((int) $dados->req_id);
+            $pendente   = (int) ($pendencias[0]['pendente_conferencia'] ?? $totalItens);
+
+            $novoStatus = ($pendente >= $totalItens) ? 18 : 24;
+
+            (new EstoquRequisicaoModel())->update((int) $dados->req_id, ['stt_id' => $novoStatus]);
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            $ret['erro'] = true;
+            $ret['msg']  = $e->getMessage();
+        }
+
+        return $ret;
+    }
+
+    /**
+     * tpa_tipo=8 — "Cancelar Inspeção": ao tratar uma ocorrência aberta
+     * sobre um item já inspecionado de uma requisição, limpa
+     * rpa_aprovada/rpa_data_inspecao do atendimento desse item
+     * (est_requisicao_produto_atendimento, identificado por rep_id — mesmo
+     * critério de cancelarAtendimentoRequisicao()); rpa_conferida não é
+     * tocado — a conferência continua válida, só a inspeção é desfeita. O
+     * update é incondicional (limpar um campo já nulo é inofensivo),
+     * sempre restrito ao rep_id deste produto nesta requisição. Recalcula
+     * o status da requisição:
+     *  - Conferida, aguardando Inspeção (stt_id=25) se, após a exclusão,
+     *    nenhum item da requisição restar inspecionado;
+     *  - Inspeção Parcial (stt_id=26) se ainda houver ao menos um item
+     *    inspecionado.
+     * Mesmos stt_id já usados para esses status em
+     * ConfRequisicao::conferir()/InspecaoProd::inspecionar().
+     */
+    private function cancelarInspecaoRequisicao(array $postado): array
+    {
+        $ret = ['erro' => false];
+
+        $dados = $this->ocorrencia->getOcorrencia($postado['oco_id']);
+        if (empty($dados->rep_id) || empty($dados->req_id)) {
+            $ret['erro'] = true;
+            $ret['msg']  = 'Ocorrência sem vínculo com Requisição — não é possível cancelar a inspeção.';
+            return $ret;
+        }
+
+        $db = \Config\Database::connect('dbEstoque');
+        $db->transBegin();
+
+        try {
+            $db->table('est_requisicao_produto_atendimento')
+                ->where('rep_id', $dados->rep_id)
+                ->update([
+                    'rpa_aprovada'      => null,
+                    'rpa_data_inspecao' => null,
+                ]);
+
+            $totalItens = count((new EstoquRequisicaoProdutoModel())->getRequisicaoProdutos((int) $dados->req_id));
+            $pendencias = (new EstoquRequisicaoProdutoAtendimentoModel())->getRequisicaoPendencias((int) $dados->req_id);
+            $pendente   = (int) ($pendencias[0]['pendente_inspecao'] ?? $totalItens);
+
+            $novoStatus = ($pendente >= $totalItens) ? 25 : 26;
+
+            (new EstoquRequisicaoModel())->update((int) $dados->req_id, ['stt_id' => $novoStatus]);
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            $ret['erro'] = true;
+            $ret['msg']  = $e->getMessage();
+        }
 
         return $ret;
     }

@@ -35,7 +35,7 @@
             echo "<ul class='nav nav-pills nav-stacked'>";
             for ($s = 0; $s < count($secoes); $s++) {
                 $active = '';
-                $secao = url_amigavel($secoes[$s]);
+                $secao = $slugs[$s] ?? url_amigavel($secoes[$s]);
                 if ($s == 0) {
                     $active = "active";
                 }
@@ -52,7 +52,7 @@
             $active = 'active';
             for ($s = 0; $s < sizeof($secoes); $s++) {
                 echo "<li class='nav-item ' role='presentation'>";
-                $secao = url_amigavel($secoes[$s]);
+                $secao = $slugs[$s] ?? url_amigavel($secoes[$s]);
                 echo "<span id='" . $secao . "-valid' class='float-end valid-tab badge rounded-pill bg-danger d-none'>!</span>";
                 echo "<button class='nav-link $active' id='" . $secao . "-tab' data-bs-toggle='tab' data-bs-target='#" . $secao . "' type='button' role='tab' aria-controls='" . $secao . "' aria-selected='false'>";
                 echo " - ";
@@ -66,7 +66,7 @@
             $active = 'show active';
             echo "<div class='tab-content bg-white' id='myTabRelatorio' >";
             for ($s = 0; $s < count($secoes); $s++) {
-                $secao = url_amigavel($secoes[$s]);
+                $secao = $slugs[$s] ?? url_amigavel($secoes[$s]);
                 echo "<div class='tab-pane fade p-lg-3 p-2 $active' id='" . $secao . "' role='tabpanel' aria-labelledby='" . $secao . "-tab' tabindex='0' style='height:300px; overflow:auto;'>";
                 if (isset($botaosecao[$s])) {
                     echo $botaosecao[$s];

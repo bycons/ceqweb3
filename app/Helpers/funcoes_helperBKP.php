@@ -601,6 +601,8 @@ function buscaArquivos($pastaapp, $completo = true, $exceto = [])
         "Microb",
         "Estoque",
         "Estoqu",
+        "Logistica",
+        "Logis",
         "Fornecedores",
         "Produto",
         "Produt",

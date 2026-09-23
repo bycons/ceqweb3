@@ -160,7 +160,7 @@ class WorkAnalise extends BaseController
             // echo count($analisesToSave) . " análises salvas.\n";
         }
 
-        echo count($analisesToSave) . " Análises criadas \n";
+        echo "\n" . count($analisesToSave) . " Análises criadas \n";
         echo count($lotesToUpdate) . " Lotes Atualizados \n";
         if (!empty($lotesToUpdate)) {
             if (method_exists($lote, 'updateBatch')) {

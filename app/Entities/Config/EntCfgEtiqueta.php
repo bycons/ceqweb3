@@ -118,7 +118,9 @@ class EntCfgEtiqueta extends Entity
             $telas = $tela->getTelaId($dados['tel_id'])[0];
             if (isset($telas['tel_model']) && $telas['tel_model'] != null) {
                 $model = $telas['tel_model'];
-                $model_atual = model(localizaModel($model));
+                $compl_model = substr($model, 0, 6);
+                $pasta = "App\\Models\\" . $compl_model . "\\";
+                $model_atual = model($pasta . $model);
                 $view   = $model_atual->view;
                 if (isset($model_atual->viewoutra)) {
                     $view   = $model_atual->viewoutra;

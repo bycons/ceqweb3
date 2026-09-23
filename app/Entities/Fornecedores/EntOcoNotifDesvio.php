@@ -170,7 +170,7 @@ class EntOcoNotifDesvio extends Entity
         $descreva->maximo      = 200;
         $descreva->linhas      = 3;
         $descreva->colunas     = 60;
-        $descreva->dispForm    = 'col-12';
+        $descreva->dispForm    = 'col-6';
         $ret['ndv_descreva'] = $descreva->crTexto();
 
         return $ret;

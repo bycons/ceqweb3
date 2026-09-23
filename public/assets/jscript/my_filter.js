@@ -227,54 +227,79 @@ async function buscaLogUser() {
   }
 }
 
-/**
- * buscaSmsEnviadas
- * Processa a busca da Consulta de SMS Enviados (Logística), moldada em
- * buscaLogUser() — período obrigatório, filtro por regra opcional.
- */
-async function buscaSmsEnviadas() {
-  var periodo = jQuery.trim(jQuery("#nse_periodo").val());
-  if (periodo == "" || periodo == null) {
-    boxAlert("Informe o Período", true, "", true, 1, false, "Alerta");
-    return;
-  }
-  var startDate = periodo.substr(0, 10);
-  var endDate = periodo.substr(-10);
-  var nscId = jQuery("#nse_nsc_id").val();
+async function buscaAnaliseMP() {
+  var $selProd = jQuery("select[name^='codPro']");
+  var codProArr = $selProd.val() || [];
+  var codPro = codProArr.join(",");
+  var codLot = jQuery.trim(jQuery("#codLot").val());
+  var perAnalise = jQuery.trim(jQuery("#perAnalise").val());
 
-  urlBusca = "NotifSmsEnviadas/lista";
-  dados = {
-    periodo: periodo,
-    inicio: startDate,
-    fim: endDate,
-    nse_nsc_id: nscId,
-  };
+  urlBusca = "AnaliseMP/lista";
+  dados = { codPro: codPro, codLot: codLot, perAnalise: perAnalise };
+
   try {
     const retornoAjax = await executaAjaxWait(urlBusca, "json", dados);
-    montaListaSmsEnviadas(retornoAjax);
+    montaListaAnaliseMP(retornoAjax);
   } catch (error) {
     console.log("Erro na requisição AJAX:", error);
   }
 }
 
-/**
- * montaListaSmsEnviadas
- * Monta a tabela de SMS Enviados, moldada em montaListaLogs(dados).
- */
-function montaListaSmsEnviadas(dados) {
+function montaListaAnaliseMP(dados) {
   jQuery("#table").DataTable().destroy();
   removeLinhas("table", 0);
 
-  linha = "";
-  for (var index in dados) {
-    item = dados[index];
+  let linha = "";
+  let loteAnterior = null;
 
-    linha = linha + "<tr>";
-    linha = linha + "<td class='align-middle'>" + item.data_envio + "</td>";
-    linha = linha + "<td class='align-middle'>" + item.chave + "</td>";
-    linha = linha + "<td class='align-middle'>" + item.regra + "</td>";
-    linha = linha + "</tr>";
+  for (let index in dados) {
+    let item = dados[index];
+
+    let eventos =
+      item.historico && item.historico.length > 0
+        ? item.historico
+        : [
+            {
+              dataHora: item.dataHora,
+              dataHoraord: item.dataHora,
+              status: item.status,
+              usuario: item.usuario,
+            },
+          ];
+
+    // Detecta início de um novo grupo (produto/lote diferente do anterior)
+    let novoGrupo = loteAnterior !== null && loteAnterior !== item.ana_id;
+    loteAnterior = item.ana_id;
+
+    eventos.forEach(function (mov, idx) {
+      // Só marca a PRIMEIRA linha de cada grupo com a borda separadora
+      let classeGrupo =
+        novoGrupo && idx === 0 ? " class='grupo-separador'" : "";
+
+      linha += "<tr data-ana-id='" + item.ana_id + "'" + classeGrupo + ">";
+      linha += "<td class='align-middle'>" + item.Produto + "</td>";
+      linha += "<td class='align-middle'>" + item.Fabricante + "</td>";
+      linha += "<td class='align-middle'>" + item.lote + "</td>";
+      linha +=
+        "<td class='align-middle' data-sort='" +
+        item.validadeord +
+        "'>" +
+        item.validade +
+        "</td>";
+      linha +=
+        "<td class='align-middle' data-sort='" +
+        mov.dataHoraord +
+        "'>" +
+        mov.dataHora +
+        "</td>";
+      linha += "<td class='align-middle'>" + mov.status + "</td>";
+      linha += "<td class='align-middle'>" + mov.usuario + "</td>";
+      linha += "</tr>";
+    });
   }
+
   jQuery("#table tbody").append(linha);
+
   dtResult("table");
+  jQuery("#table").DataTable().order([]).draw();
 }

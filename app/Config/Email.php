@@ -38,7 +38,7 @@ class Email extends BaseConfig
     /**
      * SMTP Password (senha de app do Gmail)
      */
-    public string $SMTPPass = 'nxop sjup kgaj bkpk'; // substitua por sua senha de app real
+    public string $SMTPPass = 'zgfl xrlk wfyh uzsk'; // 
 
     /**
      * SMTP Port (Gmail TLS)

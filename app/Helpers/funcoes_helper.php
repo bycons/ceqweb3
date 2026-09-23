@@ -688,6 +688,8 @@ function buscaArquivos($pastaapp, $completo = true, $exceto = [])
         "Microb",
         "Estoque",
         "Estoqu",
+        "Logistica",
+        "Logis",
         "Utils",
         "Dashboard",
         "Produto",

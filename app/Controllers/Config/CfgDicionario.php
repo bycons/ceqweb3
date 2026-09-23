@@ -39,8 +39,8 @@ class CfgDicionario extends BaseController
     public function lista()
     {
         $result = [];
-        $dados_tab = $this->dicionario->getTabelas(false);
-        // debug($dados_tab, true);
+        $dados_tab = $this->dicionario->getTabelas();
+        // debug($dados_tab, false);
         for ($p = 0; $p < sizeof($dados_tab); $p++) {
             $tabela = $dados_tab[$p];
             $detalhes = '';
@@ -172,7 +172,7 @@ class CfgDicionario extends BaseController
     {
         $campos = $this->dicionario->getCampos($tabela);
         $relac = $this->dicionario->getRelacionamentos($tabela);
-        // debug($relac, true);
+        // debug($relac, false);
         for ($r = 0; $r < count($relac['relacionamentos']); $r++) {
             $cprel = [];
             $table = $relac['relacionamentos'][$r]['REFERENCED_TABLE_NAME'];

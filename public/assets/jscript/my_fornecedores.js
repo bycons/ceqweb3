@@ -48,6 +48,24 @@ function mostraNotivisaNum(obj) {
  * @param {number} nva_id - PK de oco_notif_evento_anexo
  * @param {string} sufixo - "anexo_provid" | "anexo_parecer" (mesmo nome do container usado por addCampo()/exclui_campo())
  */
+/**
+ * confirmaSelecaoProdutos
+ * RN03.1 (T43) — botão "Selecionar Produtos" do título de NotifEvento::add():
+ * confere se há ao menos 1 checkbox ndv_id[] marcado e envia o form1 via POST
+ * nativo (form.submit(), fora do fluxo AJAX de bt_salvar/submeteForm, que
+ * espera JSON) para NotifEvento::selecionaProdutos(), que responde com a
+ * página completa do cadastro de 4 abas.
+ */
+function confirmaSelecaoProdutos() {
+  if (jQuery('input[name="ndv_id[]"]:checked').length === 0) {
+    boxAlert("Selecione ao menos um produto para notificar", true, "");
+    return;
+  }
+  var form = document.getElementById("form1");
+  form.action = window.location.origin + "/NotifEvento/selecionaProdutos";
+  form.submit();
+}
+
 async function excluiAnexoExistente(obj, nva_id, sufixo) {
   const confirmado = await boxAlert(
     "Confirma a exclusão deste anexo?",

@@ -1292,6 +1292,539 @@ class CriamPdf2026 extends BaseController
         return $html;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Documento Genérico (Gerador de Relatórios — rel_tipo_saida=DOCUMENTO)
+    //
+    //  Diferente do Tabular (que gera um SELECT único, cacheado em
+    //  rel_sql_gerado — ver PrintRelatorioGenerico()), o Documento não tem SQL
+    //  pré-gerado: a query é montada em tempo de impressão/preview a partir da
+    //  config gravada (ou do POST em andamento, no preview do admin) + do
+    //  :id_registro — ver docs/desenvolvimento (plano "Novo tipo de saída
+    //  Documento no gerador de relatórios").
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Gera o PDF de um Documento configurado, para UM registro específico
+     * (:id_registro) da tabela base do relatório $rel_id.
+     *
+     * $saida: inline | download | save | base64 (ver saidaPdf()).
+     */
+    public function PrintDocumentoGenerico($rel_id, $id_registro, string $saida = 'base64')
+    {
+        $config = $this->_montarDadosDocumento((int) $rel_id, (int) $id_registro);
+
+        if ($config === null) {
+            return $this->response
+                ->setStatusCode(404)
+                ->setJSON(['erro' => 'Relatório do tipo Documento não encontrado, ou registro inválido']);
+        }
+
+        $orientacao = ($config['formato'] ?? 'P') === 'L' ? 'L' : 'P';
+        $this->pdf  = new MymPdf2026(false, false, 'A4', $orientacao);
+        // *claude* metadado do PDF (título da aba/janela do leitor) — usa o
+        // nome administrativo do relatório (rel_nome). O TÍTULO IMPRESSO de
+        // verdade (valor resolvido dinamicamente de titulo_tabela/titulo_campo)
+        // é outra coisa, calculado dentro de htmlDocumentoGenerico() abaixo.
+        $this->pdf->titulo($config['rel_nome'] ?? '');
+
+        $html = $this->htmlDocumentoGenerico($config, false);
+        $this->pdf->html($html);
+
+        return $this->saidaPdf($this->pdf, 'documento_' . $rel_id . '_' . $id_registro . '.pdf', $saida);
+    }
+
+    /**
+     * Carrega a configuração gravada de um relatório tipo DOCUMENTO
+     * (cfg_relatorios + cfg_rel_camposcab + cfg_rel_colunas_doc +
+     * cfg_rel_textoslivres + cfg_rel_joins dos dois grupos) e monta o array
+     * $config consumido por htmlDocumentoGenerico()/_buscarDadosDocumento().
+     * Reaproveitado só pela impressão real (PrintDocumentoGenerico) — o
+     * preview do admin (CfgRelatorio::previewDocumento()) monta o $config
+     * equivalente a partir do POST em andamento, porque a config ainda não
+     * foi salva nessas tabelas.
+     *
+     * NÃO carrega cfg_rel_joins — decisão do usuário: o Documento não faz join
+     * automático entre rel_tabela_base/rel_tabela_detalhe. Cada item de
+     * Cabeçalho/Tabela/Textos Livres (e agora também o Título) já vem com o
+     * próprio ['tabela'], podendo ser rel_tabela_base OU rel_tabela_detalhe
+     * (Regra B — reforçado pelo picker, ver Buscas::busca_campos_tabela_unica());
+     * se for preciso combinar mais tabelas além dessas duas, a saída é criar
+     * uma VIEW no banco e apontar rel_tabela_base/rel_tabela_detalhe pra ela.
+     *
+     * @return array|null null quando rel_id não existe ou não é DOCUMENTO
+     */
+    private function _montarDadosDocumento(int $rel_id, int $id_registro): ?array
+    {
+        $db = db_connect('default');
+
+        $relatorio = $db->table('cfg_relatorios')->where('rel_id', $rel_id)->get()->getFirstRow();
+        if (!$relatorio || ($relatorio->rel_tipo_saida ?? 'TABULAR') !== 'DOCUMENTO') {
+            return null;
+        }
+
+        $camposCabBD  = $db->table('cfg_rel_camposcab')->where('rel_id', $rel_id)->orderBy('rcc_ordem')->get()->getResult();
+        $colunasDocBD = $db->table('cfg_rel_colunas_doc')->where('rel_id', $rel_id)->orderBy('rct_ordem')->get()->getResult();
+        $textosBD     = $db->table('cfg_rel_textoslivres')->where('rel_id', $rel_id)->orderBy('rtx_ordem')->get()->getResult();
+
+        $campos_cab = [];
+        foreach ($camposCabBD as $c) {
+            $campos_cab[] = [
+                'tabela'      => $c->rcc_tabela,
+                'campo'       => $c->rcc_campo,
+                'label'       => $c->rcc_label,
+                'tipo_dado'   => $c->rcc_tipo_dado,
+                'largura_col' => $c->rcc_largura_col,
+            ];
+        }
+
+        $colunas_doc = [];
+        foreach ($colunasDocBD as $c) {
+            $colunas_doc[] = [
+                'tabela'    => $c->rct_tabela,
+                'campo'     => $c->rct_campo,
+                'label'     => $c->rct_label,
+                'tipo_dado' => $c->rct_tipo_dado,
+                'largura'   => $c->rct_largura,
+            ];
+        }
+
+        $textos_livres = [];
+        foreach ($textosBD as $t) {
+            $textos_livres[] = [
+                'tabela' => $t->rtx_tabela ?? '',
+                'campo'  => $t->rtx_campo ?? '',
+                'texto'  => $t->rtx_texto ?? '',
+                'label'  => $t->rtx_label ?? '',
+            ];
+        }
+
+        return [
+            // *claude* Título selecionável (byarq/usuário) — vem de
+            // rel_tabela_base OU rel_tabela_detalhe, resolvido junto dos
+            // outros campos em _buscarDadosDocumento(). rel_nome é o
+            // metadado (título da aba/janela do PDF, não o conteúdo impresso
+            // — ver PrintDocumentoGenerico()).
+            'titulo_tabela'   => $relatorio->rel_titulo_tabela,
+            'titulo_campo'    => $relatorio->rel_titulo,
+            'rel_nome'        => $relatorio->rel_nome,
+            'formato'         => $relatorio->rel_formato,
+            // *claude* feedback do usuário (byarq): controla só a fonte do
+            // CORPO (tabela repetível) — cabeçalho/textos livres ficam com
+            // fonte fixa, ver htmlDocumentoGenerico().
+            'tamanho_fonte'   => (int) ($relatorio->rel_tamanho_fonte ?? 10),
+            'tabela_base'     => $relatorio->rel_tabela_base,
+            'tabela_detalhe'  => $relatorio->rel_tabela_detalhe,
+            'campo_vinculo'   => $relatorio->rel_detalhe_campo_vinculo,
+            'id_registro'     => $id_registro,
+            'campos_cab'      => $campos_cab,
+            'colunas_doc'     => $colunas_doc,
+            'textos_livres'   => $textos_livres,
+        ];
+    }
+
+    /**
+     * Gera o HTML do Documento genérico — mesma estrutura visual de
+     * htmlAnaRequisicao() (cssBase(), div.pdf-page, table.header-box com
+     * logo+título), mas 100% dirigida por $config em vez de hardcoded:
+     *  - Cabeçalho: loop sobre campos_cab (label:valor), quebra de linha por
+     *    largura_col (col-3/col-4/col-6/col-12 — grid Bootstrap).
+     *  - Tabela: <thead>/<tbody> vindos de colunas_doc_labels/linhas.
+     *  - Textos Livres: uma caixa por item (label + nl2br(valor)).
+     *
+     * Usado tanto pela impressão real (PrintDocumentoGenerico, $preview=false,
+     * $config vindo de _montarDadosDocumento()) quanto pelo preview do admin
+     * (CfgRelatorio::previewDocumento(), $preview=true, $config remontado a
+     * partir do POST em andamento — ver ali).
+     *
+     * Sem join automático entre tabela_base/tabela_detalhe (decisão do
+     * usuário) — Regra B: cada item de campos_cab/colunas_doc/textos_livres
+     * (e agora também o Título, titulo_tabela/titulo_campo) já vem com o
+     * próprio ['tabela'], podendo ser tabela_base OU tabela_detalhe
+     * (reforçado no picker, ver Buscas::busca_campos_tabela_unica()). Se for
+     * preciso combinar mais tabelas além dessas duas, a saída é criar uma
+     * VIEW no banco.
+     *
+     * O Título é impresso em NEGRITO, SEM rótulo (diferente dos campos de
+     * Cabeçalho, que mostram "Label: valor") — logo abaixo, uma 2ª linha
+     * "Nº: {id_registro}", as duas alinhadas à direita dentro do
+     * header-box.
+     *
+     * @param array $config titulo_tabela/titulo_campo, formato, tamanho_fonte
+     *                      (só afeta o corpo/tabela — cabeçalho, título e
+     *                      textos livres usam fonte fixa), tabela_base,
+     *                      tabela_detalhe, campo_vinculo, id_registro (null =
+     *                      sem dados reais, mostra placeholders), campos_cab[],
+     *                      colunas_doc[], textos_livres[]
+     */
+    public function htmlDocumentoGenerico(array $config, bool $preview = false): string
+    {
+        $formato       = $config['formato'] ?? 'P';
+        // *claude* feedback do usuário (byarq): rel_tamanho_fonte controla só a
+        // fonte do CORPO (tabela repetível) — cabeçalho (campos_cab) e textos
+        // livres ficam com fonte FIXA, igual htmlAnaRequisicao() hoje (nunca
+        // usam $fonteCorpo, só as classes/estilos fixos de cssBase()).
+        $fonteCorpo    = (int) ($config['tamanho_fonte'] ?? 10);
+        $tabelaBase    = $config['tabela_base'] ?? '';
+        $camposCabDef  = $config['campos_cab'] ?? [];
+        $colunasDocDef = $config['colunas_doc'] ?? [];
+        $textosDef     = $config['textos_livres'] ?? [];
+
+        if (empty($tabelaBase) || (empty($camposCabDef) && empty($colunasDocDef) && empty($textosDef))) {
+            return '<div style="padding:10px; color:#999; font-style:italic;">Selecione a tabela base e configure ao menos um campo de Cabeçalho, Tabela ou Rodapé para visualizar o preview.</div>';
+        }
+
+        $dados  = $this->_buscarDadosDocumento($config, $config['id_registro'] ?? null);
+        $titulo = $dados['titulo'] ?? '';
+
+        // $this->pdf só existe quando chamado a partir de PrintDocumentoGenerico
+        // (impressão real); no preview do admin (CfgRelatorio::previewDocumento())
+        // a classe é instanciada "solta" (igual ao preview do Tabular), então
+        // cssBase() é obtido de uma instância descartável só pra gerar o CSS.
+        $css  = isset($this->pdf) ? $this->pdf->cssBase() : (new MymPdf2026(false, false, 'A4', $formato === 'L' ? 'L' : 'P'))->cssBase();
+        $logo = $preview ? base_url('assets/images/logo-back.png') : $this->logoBack();
+
+        // ── Cabeçalho (label:valor) ──────────────────────────────────────────
+        $camposCabHtml = '';
+        foreach ($dados['campos_cab'] as $c) {
+            $larguraCol = $c['largura_col'] ?: 'col-3';
+            $valor      = $c['valor'];
+            $tipo       = strtolower($c['tipo_dado'] ?? '');
+            if ($valor !== '' && in_array($tipo, ['date', 'datetime', 'timestamp'])) {
+                $valor = function_exists('data_br') ? data_br($valor) : $valor;
+            }
+            // Rótulo opcional (usuário, 2026-09-23) — sem rótulo, só o valor.
+            $rotulo = trim((string) ($c['label'] ?? ''));
+            $camposCabHtml .= '<div class="' . $this->e($larguraCol) . ' float-start" style="padding:1mm 2mm; min-height:6mm;">'
+                . ($rotulo !== '' ? '<span class="label">' . $this->e($rotulo) . ':</span> ' : '')
+                . $this->e((string) $valor)
+                . '</div>';
+        }
+
+        // ── Tabela ────────────────────────────────────────────────────────────
+        $theadHtml = '';
+        foreach ($dados['colunas_doc_labels'] as $lbl) {
+            $theadHtml .= '<th style="text-align:left;">' . $this->e($lbl) . '</th>';
+        }
+
+        $numCols   = max(1, count($dados['colunas_doc_labels']));
+        $tbodyHtml = '';
+        if (empty($dados['linhas'])) {
+            $tbodyHtml .= '<tr><td colspan="' . $numCols . '" style="text-align:center; color:#999;">'
+                . ($preview ? 'Nenhum registro encontrado (preencha o "ID de teste" na aba Dados Gerais).' : 'Nenhum registro encontrado.')
+                . '</td></tr>';
+        } else {
+            foreach ($dados['linhas'] as $linha) {
+                $tbodyHtml .= '<tr>';
+                foreach ($linha as $valor) {
+                    $tbodyHtml .= '<td>' . $this->e((string) $valor) . '</td>';
+                }
+                $tbodyHtml .= '</tr>';
+            }
+        }
+
+        // ── Rodapé (cfg_rel_textoslivres) ───────────────────────────────────
+        // Uma caixa por linha: rótulo (opcional) + texto digitado (opcional)
+        // + valor do campo vinculado (opcional), nessa ordem.
+        $textosHtml = '';
+        foreach ($dados['textos_livres'] as $t) {
+            $partes = [];
+            $rotulo = trim((string) ($t['label'] ?? ''));
+            if ($rotulo !== '') {
+                $partes[] = '<strong>' . $this->e($rotulo) . ':</strong>';
+            }
+            if (trim((string) ($t['texto'] ?? '')) !== '') {
+                $partes[] = nl2br($this->e((string) $t['texto']));
+            }
+            if (!empty($t['tem_campo'])) {
+                $partes[] = nl2br($this->e((string) $t['valor']));
+            }
+            if (empty($partes)) {
+                continue;
+            }
+            $textosHtml .= '<div class="box small" style="min-height:10mm; margin-top:2mm;">'
+                . implode('<br>', $partes)
+                . '</div>';
+        }
+
+        return $css . '
+        <div class="pdf-page">
+            <table class="header-box">
+                <tr>
+                    <td style="width:20mm; padding-left:1mm; vertical-align:middle;"><img src="' . $this->e($logo) . '" class="logo"></td>
+                    <td style="text-align:right; padding-right:2mm; vertical-align:middle; font-size:11pt;">
+                        <strong>' . $this->e($titulo) . '</strong><br>
+                        Nº: ' . $this->e((string) ($config['id_registro'] ?? '')) . '
+                    </td>
+                </tr>
+            </table>
+
+            <div class="box" style="min-height:12mm;">
+                <div class="row">' . $camposCabHtml . '</div>
+            </div>
+
+            <table class="table-border" autosize="1" style="font-size:' . $fonteCorpo . 'pt;">
+                <thead><tr>' . $theadHtml . '</tr></thead>
+                <tbody>' . $tbodyHtml . '</tbody>
+            </table>
+            ' . $textosHtml . '
+        </div>';
+    }
+
+    /**
+     * Executa as queries do Documento e devolve os valores já formatados,
+     * prontos para htmlDocumentoGenerico(). Sem :id_registro (preview do
+     * admin antes de preencher o "ID de teste") ou sem tabela_base, devolve
+     * placeholders — mesmo critério do preview do Tabular (10 registros
+     * fictícios em _buscarDadosRelatorio()).
+     *
+     * Regra B (byarq/usuário): Cabeçalho, Tabela E Textos Livres podem ter
+     * campos de rel_tabela_base OU rel_tabela_detalhe (cada item já vem com
+     * seu próprio ['tabela'] — garantido pelo picker do admin, ver Buscas::
+     * busca_campos_tabela_unica()). Nenhuma query faz JOIN entre as duas
+     * (decisão do usuário — se precisar de mais tabelas, cria uma VIEW no
+     * banco). Duas fontes:
+     *  - Query 1 (tabela_base, 1 registro, WHERE pk = :id_registro): supre
+     *    os itens de campos_cab/textos_livres/colunas_doc cujo tabela ===
+     *    tabela_base. Para colunas_doc, esse valor é ÚNICO e se REPETE em
+     *    todas as N linhas da grade (o valor "mora" no cabeçalho, não varia
+     *    por linha).
+     *  - Query 2 (tabela_detalhe, N linhas, WHERE campo_vinculo =
+     *    :id_registro): supre os itens de colunas_doc/campos_cab/
+     *    textos_livres cujo tabela === tabela_detalhe. Para campos_cab/
+     *    textos_livres (que são "1 valor só", não uma grade), pega o valor
+     *    da PRIMEIRA linha retornada (mesmo critério que o módulo antigo
+     *    AnaRequisicao hardcoded já usava pra campos repetidos por lote,
+     *    exibidos uma vez só no cabeçalho — ex.: "Método"). Limitação
+     *    conhecida: se colunas_doc não tiver NENHUM item de tabela_detalhe,
+     *    a Query 2 não roda (nada define quantas linhas "N" existem) e a
+     *    grade fica vazia mesmo que existam itens de tabela_base configurados.
+     *
+     * @return array{campos_cab: array, colunas_doc_labels: array, linhas: array, textos_livres: array}
+     */
+    protected function _buscarDadosDocumento(array $config, ?int $id_registro): array
+    {
+        $tabelaBase    = $config['tabela_base'] ?? '';
+        $tabelaDetalhe = $config['tabela_detalhe'] ?? '';
+        $campoVinculo  = $config['campo_vinculo'] ?? '';
+        $camposCabDef  = $config['campos_cab'] ?? [];
+        $colunasDocDef = $config['colunas_doc'] ?? [];
+        $textosDef     = $config['textos_livres'] ?? [];
+
+        $colunasDocLabels = array_map(fn($c) => $c['label'] ?? '', $colunasDocDef);
+
+        // *claude* Título selecionável (byarq/usuário) — mesmo mecanismo dos
+        // outros campos: pode vir de tabela_base OU tabela_detalhe.
+        $tituloTabela = $config['titulo_tabela'] ?? '';
+        $tituloCampo  = $config['titulo_campo']  ?? '';
+
+        if (empty($id_registro) || empty($tabelaBase)) {
+            return [
+                'titulo'     => 'Exemplo',
+                'campos_cab' => array_map(fn($c) => [
+                    'label'       => $c['label'] ?? '',
+                    'valor'       => 'Exemplo',
+                    'largura_col' => $c['largura_col'] ?? 'col-3',
+                    'tipo_dado'   => '',
+                ], $camposCabDef),
+                'colunas_doc_labels' => $colunasDocLabels,
+                'linhas'             => empty($colunasDocDef) ? [] : [
+                    array_fill(0, count($colunasDocDef), 'Exemplo'),
+                    array_fill(0, count($colunasDocDef), 'Exemplo'),
+                ],
+                'textos_livres' => array_map(fn($t) => [
+                    'label'     => $t['label'] ?? '',
+                    'texto'     => $t['texto'] ?? '',
+                    'tem_campo' => !empty($t['campo']),
+                    'valor'     => 'Exemplo',
+                ], $textosDef),
+            ];
+        }
+
+        $dicDados       = new \App\Models\Config\ConfigDicDadosModel();
+        $resolverSchema = function (string $tabela) use ($dicDados): string {
+            static $cache = [];
+            if ($tabela === '') {
+                return '';
+            }
+            if (!isset($cache[$tabela])) {
+                $info           = $dicDados->getDbGroupAndSchema($tabela);
+                $cache[$tabela] = !empty($info['schema']) ? $info['schema'] . '.' . $tabela : $tabela;
+            }
+            return $cache[$tabela];
+        };
+
+        $tabelaBaseSchema    = $resolverSchema($tabelaBase);
+        $tabelaDetalheSchema = $resolverSchema($tabelaDetalhe);
+
+        $camposCabValores = [];
+        $textosValores    = [];
+        $linhas           = [];
+        $tituloValor      = '';
+
+        try {
+            // ── Query 1: tabela_base, 1 registro (WHERE pk = :id_registro) ───
+            $selColsBase = [];
+            foreach ($camposCabDef as $i => $c) {
+                if (($c['tabela'] ?? '') === $tabelaBase) {
+                    $selColsBase[] = "{$tabelaBaseSchema}.{$c['campo']} AS 'cab_{$i}'";
+                }
+            }
+            // Rodapé: só as linhas com campo vinculado (linha só-texto não consulta nada)
+            foreach ($textosDef as $i => $t) {
+                if (!empty($t['campo']) && ($t['tabela'] ?? '') === $tabelaBase) {
+                    $selColsBase[] = "{$tabelaBaseSchema}.{$t['campo']} AS 'txt_{$i}'";
+                }
+            }
+            // colunas_doc de tabela_base: valor único, repetido em todas as
+            // linhas da grade — resolvido mais abaixo, junto da Query 2.
+            foreach ($colunasDocDef as $i => $c) {
+                if (($c['tabela'] ?? '') === $tabelaBase) {
+                    $selColsBase[] = "{$tabelaBaseSchema}.{$c['campo']} AS 'colbase_{$i}'";
+                }
+            }
+            // Título, quando vem de tabela_base.
+            if ($tituloTabela === $tabelaBase && !empty($tituloCampo)) {
+                $selColsBase[] = "{$tabelaBaseSchema}.{$tituloCampo} AS 'titulo_valor'";
+            }
+
+            $rowBase = null;
+            if (!empty($selColsBase)) {
+                $pkInfo = $dicDados->getCampoChave($tabelaBase);
+                $pk     = $pkInfo[0]['COLUMN_NAME'] ?? null;
+
+                if ($pk) {
+                    $dbGrSche = $dicDados->getDbGroupAndSchema($tabelaBase);
+                    $dbConn   = db_connect($dbGrSche['dbGroup']);
+
+                    $sql = 'SELECT ' . implode(', ', $selColsBase) . ' FROM ' . $tabelaBaseSchema
+                        . ' WHERE ' . $tabelaBaseSchema . '.' . $pk . ' = ?';
+
+                    $rowBase = $dbConn->query($sql, [$id_registro])->getRowArray();
+                }
+            }
+
+            if ($rowBase) {
+                foreach ($camposCabDef as $i => $c) {
+                    if (($c['tabela'] ?? '') === $tabelaBase) {
+                        $camposCabValores[$i] = $rowBase['cab_' . $i] ?? '';
+                    }
+                }
+                foreach ($textosDef as $i => $t) {
+                    if (($t['tabela'] ?? '') === $tabelaBase) {
+                        $textosValores[$i] = $rowBase['txt_' . $i] ?? '';
+                    }
+                }
+                if ($tituloTabela === $tabelaBase) {
+                    $tituloValor = $rowBase['titulo_valor'] ?? '';
+                }
+            }
+
+            // ── Query 2: tabela_detalhe, N linhas (WHERE campo_vinculo = :id_registro) ──
+            $selColsDetalhe = [];
+            foreach ($colunasDocDef as $i => $c) {
+                if (($c['tabela'] ?? '') === $tabelaDetalhe) {
+                    $selColsDetalhe[] = "{$tabelaDetalheSchema}.{$c['campo']} AS 'col_{$i}'";
+                }
+            }
+            foreach ($camposCabDef as $i => $c) {
+                if (($c['tabela'] ?? '') === $tabelaDetalhe) {
+                    $selColsDetalhe[] = "{$tabelaDetalheSchema}.{$c['campo']} AS 'cabdet_{$i}'";
+                }
+            }
+            foreach ($textosDef as $i => $t) {
+                if (!empty($t['campo']) && ($t['tabela'] ?? '') === $tabelaDetalhe) {
+                    $selColsDetalhe[] = "{$tabelaDetalheSchema}.{$t['campo']} AS 'txtdet_{$i}'";
+                }
+            }
+            // Título, quando vem de tabela_detalhe.
+            if ($tituloTabela === $tabelaDetalhe && !empty($tituloCampo)) {
+                $selColsDetalhe[] = "{$tabelaDetalheSchema}.{$tituloCampo} AS 'titulodet_valor'";
+            }
+
+            $resultadoDetalhe = [];
+            if (!empty($selColsDetalhe) && !empty($tabelaDetalhe) && !empty($campoVinculo)) {
+                $dbGrSche = $dicDados->getDbGroupAndSchema($tabelaDetalhe);
+                $dbConn   = db_connect($dbGrSche['dbGroup']);
+
+                $sql = 'SELECT ' . implode(', ', $selColsDetalhe) . ' FROM ' . $tabelaDetalheSchema
+                    . ' WHERE ' . $tabelaDetalheSchema . '.' . $campoVinculo . ' = ?';
+
+                $resultadoDetalhe = $dbConn->query($sql, [$id_registro])->getResultArray();
+            }
+
+            // campos_cab/textos_livres de tabela_detalhe: "1 valor só" — pega
+            // a PRIMEIRA linha da grade (mesmo critério do AnaRequisicao
+            // hardcoded antigo pra campos repetidos por lote).
+            if (!empty($resultadoDetalhe)) {
+                $primeiraLinha = $resultadoDetalhe[0];
+
+                foreach ($camposCabDef as $i => $c) {
+                    if (($c['tabela'] ?? '') === $tabelaDetalhe) {
+                        $camposCabValores[$i] = $primeiraLinha['cabdet_' . $i] ?? '';
+                    }
+                }
+                foreach ($textosDef as $i => $t) {
+                    if (($t['tabela'] ?? '') === $tabelaDetalhe) {
+                        $textosValores[$i] = $primeiraLinha['txtdet_' . $i] ?? '';
+                    }
+                }
+                if ($tituloTabela === $tabelaDetalhe) {
+                    $tituloValor = $primeiraLinha['titulodet_valor'] ?? '';
+                }
+            }
+
+            // Monta as N linhas da grade "Tabela": colunas de tabela_detalhe
+            // vêm de cada linha normalmente; colunas de tabela_base repetem o
+            // mesmo valor único ($rowBase) em TODAS as linhas.
+            foreach ($resultadoDetalhe as $rowDetalhe) {
+                $linha = [];
+                foreach ($colunasDocDef as $i => $c) {
+                    $tabelaColuna = $c['tabela'] ?? '';
+
+                    if ($tabelaColuna === $tabelaDetalhe) {
+                        $valor = $rowDetalhe['col_' . $i] ?? '';
+                    } elseif ($tabelaColuna === $tabelaBase) {
+                        $valor = $rowBase['colbase_' . $i] ?? '';
+                    } else {
+                        $valor = '';
+                    }
+
+                    $tipo = strtolower($c['tipo_dado'] ?? '');
+                    if ($valor !== '' && in_array($tipo, ['date', 'datetime', 'timestamp'])) {
+                        $valor = function_exists('data_br') ? data_br($valor) : $valor;
+                    }
+                    $linha[] = $valor;
+                }
+                $linhas[] = $linha;
+            }
+        } catch (\Throwable $e) {
+            // Config incompleta/inconsistente (ex.: campo removido da tabela
+            // depois de configurado) — não quebra a tela/impressão, só não
+            // preenche dados. Mesmo critério do Tabular em _buscarDadosRelatorio().
+        }
+
+        $camposCabIdx = array_keys($camposCabDef);
+        $textosIdx    = array_keys($textosDef);
+
+        return [
+            'titulo'     => $tituloValor,
+            'campos_cab' => array_map(fn($c, $i) => [
+                'label'       => $c['label'] ?? '',
+                'valor'       => $camposCabValores[$i] ?? '',
+                'largura_col' => $c['largura_col'] ?? 'col-3',
+                'tipo_dado'   => $c['tipo_dado'] ?? '',
+            ], $camposCabDef, $camposCabIdx),
+            'colunas_doc_labels' => $colunasDocLabels,
+            'linhas'             => $linhas,
+            'textos_livres'      => array_map(fn($t, $i) => [
+                'label'     => $t['label'] ?? '',
+                'texto'     => $t['texto'] ?? '',
+                'tem_campo' => !empty($t['campo']),
+                'valor'     => $textosValores[$i] ?? '',
+            ], $textosDef, $textosIdx),
+        ];
+    }
+
     protected function e(?string $value): string
     {
         $value = (string) $value;

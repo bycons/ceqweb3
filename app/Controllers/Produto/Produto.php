@@ -3,6 +3,7 @@
 namespace App\Controllers\Produto;
 
 use App\Controllers\BaseController;
+use App\Controllers\Ws\WsCeqweb;
 use App\Entities\Produto\EntProdutos;
 use App\Entities\Produto\EntProdutProduto;
 use App\Models\CommonModel;

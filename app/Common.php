@@ -241,7 +241,9 @@ function montaColunasLista($data_lis, $chave)
 
     $lista      = $telaLista->getListagem($data_lis['tel_id']);
     $arr_campos = array_column($lista, 'lis_rotulo');
-    array_unshift($arr_campos, $chave);
+    if ($chave != '') {
+        array_unshift($arr_campos, $chave);
+    }
 
     $temacao     = $data_lis['temacao'] ?? true;
     if ($temacao) {

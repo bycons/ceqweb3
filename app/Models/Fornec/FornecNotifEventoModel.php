@@ -142,15 +142,11 @@ class FornecNotifEventoModel extends Model
         return $builder->get()->getResult();
     }
 
-    public function getStatusPendenteId(): ?int
+    public function getStatusId($stat = ''): ?int
     {
-        return $this->getStatusPorNome('Pendente');
+        return $this->getStatusPorNome($stat);
     }
 
-    public function getStatusConcluidaId(): ?int
-    {
-        return $this->getStatusPorNome('Concluída');
-    }
 
     private function getStatusPorNome(string $nome): ?int
     {

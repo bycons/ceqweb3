@@ -23,6 +23,11 @@ class LogEmailThrottleHandler extends FileHandler
 
     public function handle($level, $message): bool
     {
+        // Fora de produção não envia e-mail de erro (evita recursão via log_message do Email::spoolEmail)
+        if (ENVIRONMENT !== 'production') {
+            return true;
+        }
+
         // Trace temporário — remover após diagnóstico
         file_put_contents(
             WRITEPATH . 'logs/_trace.log',

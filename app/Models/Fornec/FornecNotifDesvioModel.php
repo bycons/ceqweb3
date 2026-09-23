@@ -102,15 +102,11 @@ class FornecNotifDesvioModel extends Model
      * automática disparada em OcoTrataOcorrencia::gerarNotificacaoDesvio()
      * quando a ação "Notificação do Fornecedor" (tpa_tipo = 5) é executada.
      */
-    public function getStatusPendenteId(): ?int
+    public function getStatusId($stat = ''): ?int
     {
-        return $this->getStatusPorNome('Pendente');
+        return $this->getStatusPorNome($stat);
     }
 
-    public function getStatusConcluidaId(): ?int
-    {
-        return $this->getStatusPorNome('Concluída');
-    }
 
     private function getStatusPorNome(string $nome): ?int
     {

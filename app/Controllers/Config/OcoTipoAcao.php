@@ -1,17 +1,18 @@
 <?php
+
 namespace App\Controllers\Config;
 
-use App\Controllers\BaseController;
-use App\Entities\Ocorrencia\EntOcoTipoAcao;
 use App\Models\CommonModel;
-use App\Models\Ocorre\OcorreTipoAcaoModel;
+use App\Controllers\BaseController;
 use App\Traits\ForeignKeyUsageChecker;
+use App\Models\Ocorre\OcorreTipoAcaoModel;
+use App\Entities\Ocorrencia\EntOcoTipoAcao;
 
 class OcoTipoAcao extends BaseController
 {
     use ForeignKeyUsageChecker;
 
-    public $data      = [];
+    public $data = [];
     public $permissao = '';
     public $tipoacao;
     public $common;
@@ -35,7 +36,7 @@ class OcoTipoAcao extends BaseController
      * Erro de Acesso
      * erro
      */
-    public function __erro()
+    function __erro()
     {
         echo view('vw_semacesso', $this->data);
     }
@@ -57,9 +58,9 @@ class OcoTipoAcao extends BaseController
      */
     public function lista()
     {
-        $campos       = montaColunasCampos($this->data, 'tpa_id');
+        $campos = montaColunasCampos($this->data, 'tpa_id');
         $dados_tipoac = $this->tipoacao->getTipoAcao();
-        $tipoac       = [
+        $tipoac = [
             'data' => montaListaColunasEnt($this->data, 'tpa_id', $dados_tipoac, $campos[1]),
         ];
         cache()->save('tipoac', $tipoac, 60000);
@@ -86,18 +87,19 @@ class OcoTipoAcao extends BaseController
             $acao->campos['tpa_nome'],
             $acao->campos['tpa_tipo'],
         ]];
-
+        // debug($this->data['campos'], true);
         // Define o método de destino do formulário
         $this->data['destino'] = 'store';
         // Renderiza a view de edição
         echo view('vw_edicao', $this->data);
     }
 
+
     /**
      * Edição
      * edit
      *
-     * @param mixed $id
+     * @param mixed $id 
      * @return void
      */
     public function edit($id, $show = false)
@@ -106,11 +108,11 @@ class OcoTipoAcao extends BaseController
         $acao = $this->tipoacao->find($id);
 
         // Valida se o registro existe
-        if (! $acao) {
+        if (!$acao) {
             throw new \Exception('Ação não encontrada');
         }
 
-        // Gera os campos da entity
+        // Gera os campos da entity 
         $acao->campos = $acao->defCampos($acao->toArray(), $show);
 
         // Define a seção da tela
@@ -121,8 +123,9 @@ class OcoTipoAcao extends BaseController
             $acao->campos['tpa_nome'],
             $acao->campos['tpa_tipo'],
         ]];
+        // debug($this->data['campos'], true);
 
-        $this->data['destino'] = 'store';
+        $this->data['destino']    = 'store';
         $this->data['log']     = buscaLog('oco_tipo_acao', $id);
 
         echo view('vw_edicao', $this->data);
@@ -134,19 +137,19 @@ class OcoTipoAcao extends BaseController
         try {
             if ($tipo == 1) {
                 $dad_atin = [
-                    'tpa_ativo' => 'A',
+                    'tpa_ativo' => 'A'
                 ];
             } else {
                 $dad_atin = [
-                    'tpa_ativo' => 'I',
+                    'tpa_ativo' => 'I'
                 ];
-                $this->verificarUsoEmRelacionamentos('oco_tipo_acao', 'tpa_id', (int) $id);
+                // $this->verificarUsoEmRelacionamentos('oco_tipo_acao', 'tpa_id', (int) $id);
             }
 
             $this->tipoacao->update($id, $dad_atin);
             $ret['erro'] = false;
             session()->setFlashdata('msg', 'Tipo de Ação Alterada com Sucesso');
-            $ret['msg'] = 'Tipo de Ação Alterada com Sucesso';
+            $ret['msg']  = 'Tipo de Ação Alterada com Sucesso';
         } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
             $ret['erro'] = true;
             $ret['msg']  = 14;
@@ -158,11 +161,12 @@ class OcoTipoAcao extends BaseController
         echo json_encode($ret);
     }
 
+
     /**
      * Exclusão
      * delete
      *
-     * @param mixed $id
+     * @param mixed $id 
      * @return void
      */
     public function delete($id)
@@ -177,7 +181,7 @@ class OcoTipoAcao extends BaseController
             $this->tipoacao->delete($id);
             $ret['erro'] = false;
             session()->setFlashdata('msg', 'Tipo de Ação Excluído com Sucesso');
-            $ret['msg'] = 'Tipo de Ação Excluído com Sucesso';
+            $ret['msg']  = 'Tipo de Ação Excluído com Sucesso';
         } catch (\Exception $e) {
             $ret['erro'] = true;
             $ret['msg']  = 3;
@@ -193,9 +197,9 @@ class OcoTipoAcao extends BaseController
      */
     public function store()
     {
-        $ret     = [];
+        $ret = [];
         $postado = $this->request->getPost();
-        $erros   = [];
+        $erros = [];
 
         // Inicia transação no model
         $this->tipoacao->transBegin();
@@ -203,15 +207,15 @@ class OcoTipoAcao extends BaseController
         $exists = $this->common->verificaUnico($this->tipoacao, 'tpa_nome', $postado['tpa_nome'], 'tpa_id', $postado['tpa_id']);
         if ($exists > 0) {
             $ret['erro'] = true;
-            $ret['msg']  = 8;
-            $erros       = [8];
+            $ret['msg'] = 8;
+            $erros = [8];
         }
 
-        // Caso não haja erros de validação
+        // Caso não haja erros de validação    
         if (count($erros) == 0) {
             try {
                 // Salva os dados do Tipo de Ação
-                if (! $this->tipoacao->save($postado)) {
+                if (!$this->tipoacao->save($postado)) {
                     throw new \Exception('Erro ao salvar os dados.');
                 }
 
@@ -222,7 +226,7 @@ class OcoTipoAcao extends BaseController
                 $ret['erro'] = false;
                 $ret['msg']  = 'Tipo de Ação gravada com Sucesso!!!';
                 session()->setFlashdata('msg', $ret['msg']);
-                $ret['url'] = site_url($this->data['controler']);
+                $ret['url']  = site_url($this->data['controler']);
             } catch (\Exception $e) {
                 // Se houver erro, faz rollback
                 $this->tipoacao->transRollback();
@@ -231,7 +235,7 @@ class OcoTipoAcao extends BaseController
                 $ret['msg']  = 'Não foi possível gravar Tipo de Ação, Verifique!<br><br>';
 
                 $erros = $this->tipoacao->errors();
-                if (! empty($erros)) {
+                if (!empty($erros)) {
                     foreach ($erros as $erro) {
                         $ret['msg'] .= $erro . '<br>';
                         if (is_numeric($erro)) {

@@ -136,6 +136,7 @@ class Buscas extends BaseController
 
         if ($_REQUEST['busca']) {
             $modulos = $this->modulo->getModulo($_REQUEST['busca']);
+
             if (empty($modulos)) {
                 $o = new \stdClass();
                 $o->id = '-1';
@@ -143,7 +144,6 @@ class Buscas extends BaseController
                 $ret[] = $o;
             } else {
                 foreach ($modulos as $m) {
-                    // debug($m, true);
                     $o = new \stdClass();
                     $o->id = $m->mod_id;
                     $o->text = $m->mod_nome;
@@ -187,6 +187,8 @@ class Buscas extends BaseController
                     $ret[$c]['text']    = $telas[$c]->tel_nome;
                     $ret[$c]['icone']   = $telas[$c]->tel_icone;
                 }
+                $ret[$c]['id'] = '-1';
+                $ret[$c]['text'] = 'Sem tela...';
             }
         }
         echo json_encode($ret);
@@ -197,11 +199,18 @@ class Buscas extends BaseController
     {
         $ret   = [];
         $modId = $_REQUEST['busca'] ?? null;
+        // *claude* rel_tabela_base do tipo DOCUMENTO (CfgRelatorio) não pode
+        // ser VIEW — só a instância que chama esse endpoint com
+        // ?apenas_tabela=1 (EntCfgRelatorios::defCampos()) restringe a
+        // BASE TABLE; Tabular e rel_tabela_detalhe continuam podendo listar
+        // views, comportamento idêntico ao de sempre (2º parâmetro de
+        // getTabelasPorDbGroup() já filtra table_type quando false).
+        $includeViews = empty($_REQUEST['apenas_tabela']);
 
         if ($modId) {
             $mod = $this->modulo->find((int) $modId);
             if ($mod && !empty($mod->mod_dbgroup)) {
-                $tabelas = $this->admDados->getTabelasPorDbGroup($mod->mod_dbgroup, true);
+                $tabelas = $this->admDados->getTabelasPorDbGroup($mod->mod_dbgroup, $includeViews);
                 foreach ($tabelas as $i => $t) {
                     $ret[$i]['id']   = $t['table_name'];
                     $ret[$i]['text'] = $t['table_name'] . ' - ' . $t['table_comment'];
@@ -263,6 +272,87 @@ class Buscas extends BaseController
         }
 
         echo json_encode($ret);
+        exit;
+    }
+
+    /**
+     * Lista TODOS os campos de UMA OU DUAS tabelas literais (informadas em
+     * `busca`, separadas por vírgula — ex.: "tabela_base,tabela_detalhe"),
+     * sem a expansão pais/filhas/netas que busca_campos_colunas_rel() faz
+     * para o Tabular. Usada pelos 3 pickers do tipo DOCUMENTO do gerador de
+     * relatórios (CfgRelatorio) — Cabeçalho/Tabela/Textos Livres — que, por
+     * decisão do usuário, podem referenciar campos de rel_tabela_base OU
+     * rel_tabela_detalhe (as duas, em qualquer uma das 3 abas) — mas
+     * continuam SEM join automático entre elas (cada campo pertence a uma
+     * das duas tabelas, nunca combinado; ver CriamPdf2026::
+     * _buscarDadosDocumento()). Se for preciso combinar mais tabelas além
+     * dessas duas, quem configura o relatório cria uma VIEW no banco.
+     *
+     * Mesmo formato de retorno de busca_campos_colunas_rel() (tabela|campo|
+     * tamanho|tipo, "[tabela] label"), só que estritamente escopado às
+     * tabelas informadas — mesmo padrão de busca_campos_filtro_rel()
+     * (Buscas.php acima), mas sem o filtro de FK/data/view (aqui entram
+     * TODAS as colunas). Não faz distinct entre as duas tabelas — se ambas
+     * tiverem uma coluna com o mesmo nome, aparecem como duas opções
+     * distintas (o "[tabela]" no label já desambigua, e o value já é
+     * "tabela|campo|...", nunca colide).
+     */
+    public function busca_campos_tabela_unica()
+    {
+        $ret     = [];
+        $tabelas = array_filter(array_map('trim', explode(',', (string) ($_REQUEST['busca'] ?? ''))));
+
+        $i = 0;
+        foreach ($tabelas as $tabela) {
+            $campos = $this->admDados->getCampos($tabela);
+
+            foreach ($campos as $col) {
+                if (str_ends_with($col['COLUMN_NAME'], '_excluido')) continue;
+
+                $tamanho = $col['COLUMN_SIZE'] ?? 0;
+                $tipo    = $col['DATA_TYPE'] ?? '';
+
+                $ret[$i]['id']   = $tabela . '|' . $col['COLUMN_NAME'] . '|' . $tamanho . '|' . $tipo;
+                $ret[$i]['text'] = '[' . $tabela . '] ' . $col['NOME_COMPLETO'];
+                $i++;
+            }
+        }
+
+        if (empty($ret)) {
+            $ret[0]['id']   = '-1';
+            $ret[0]['text'] = 'Nenhum campo encontrado';
+        }
+
+        echo json_encode($ret);
+        exit;
+    }
+
+    /**
+     * Devolve a coluna de `detalhe` que é FK (real ou potencial) pra PK de
+     * `base` — feedback visual do campo "Coluna de Vínculo" (rel_detalhe_
+     * campo_vinculo) da aba Dados Gerais do tipo DOCUMENTO (CfgRelatorio).
+     * O valor é sempre RECALCULADO no servidor no store() real
+     * (CfgRelatorio::_storeDocumento()) — isto aqui é só pra o admin ver o
+     * resultado ao vivo enquanto configura, sem risco de inconsistência.
+     */
+    public function busca_campo_vinculo_rel()
+    {
+        $tabelaDetalhe = $_REQUEST['detalhe'] ?? null;
+        $tabelaBase    = $_REQUEST['base'] ?? null;
+
+        if (!$tabelaDetalhe || !$tabelaBase) {
+            echo json_encode(['erro' => true, 'msg' => 'Informe a Tabela Cabeçalho e a Tabela Detalhe.']);
+            exit;
+        }
+
+        $campo = $this->admDados->buscarCampoVinculo($tabelaDetalhe, $tabelaBase);
+
+        if ($campo === null) {
+            echo json_encode(['erro' => true, 'msg' => 'Nenhum campo relacionado encontrado.']);
+            exit;
+        }
+
+        echo json_encode(['erro' => false, 'campo' => $campo]);
         exit;
     }
 
@@ -1060,7 +1150,9 @@ class Buscas extends BaseController
 
             if (isset($telas->tel_model) && $telas->tel_model != null) {
                 $model = $telas->tel_model;
-                $model_atual = model(localizaModel($model));
+                $compl_model = substr($model, 0, 6);
+                $pasta = "App\\Models\\" . $compl_model . "\\";
+                $model_atual = model($pasta . $model);
                 $view   = $model_atual->view;
                 if (isset($model_atual->viewoutra)) {
                     $view   = $model_atual->viewoutra;

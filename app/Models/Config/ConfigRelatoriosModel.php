@@ -22,7 +22,21 @@ class ConfigRelatoriosModel extends Model
         'mod_id',
         'tel_id',
         'rel_titulo',
+        // *claude* só usada quando rel_tipo_saida=DOCUMENTO — tabela de origem
+        // da coluna escolhida como Título (rel_tabela_base ou
+        // rel_tabela_detalhe; ver CfgRelatorio::store()). No Tabular fica
+        // sempre NULL/sem uso — rel_titulo ali continua texto livre.
+        'rel_titulo_tabela',
+        // *claude* tipo de saída do relatório: TABULAR (comportamento original,
+        // gera SELECT dinâmico único) | DOCUMENTO (cabeçalho + tabela repetível +
+        // textos livres, montado em tempo de impressão a partir de :id_registro).
+        // Default 'TABULAR' no banco — aditivo, não muda relatórios existentes.
+        'rel_tipo_saida',
         'rel_tabela_base',
+        // *claude* só usados quando rel_tipo_saida=DOCUMENTO — tabela da grade
+        // repetível (aba "Tabela") e a coluna dela que vincula com :id_registro.
+        'rel_tabela_detalhe',
+        'rel_detalhe_campo_vinculo',
         'rel_formato',
         'rel_tamanho_fonte',
         'rel_chars_por_linha',
@@ -38,7 +52,22 @@ class ConfigRelatoriosModel extends Model
         'rel_id'            => 'permit_empty|integer',
         'rel_nome'          => 'required|min_length[5]|max_length[50]|is_unique[cfg_relatorios.rel_nome,rel_id,{rel_id}]',
         'rel_titulo'        => 'required|min_length[3]',
+        'rel_tipo_saida'    => 'required|in_list[TABULAR,DOCUMENTO]',
+        // *claude* rel_tabela_base é usada tanto pelo Tabular (tabela do SELECT
+        // único) quanto pelo Documento (cabeçalho + textos livres) — por isso
+        // continua obrigatória nos dois tipos. "required_if" NÃO existe no
+        // conjunto de regras deste projeto (Config\Validation::$ruleSets usa
+        // CodeIgniter\Validation\StrictRules\Rules, que não implementa
+        // required_if — usá-lo quebra TODO save com "'required_if' is not a
+        // valid rule"), por isso aqui é sempre "required" (vale pros dois
+        // tipos, sem condicional).
         'rel_tabela_base'   => 'required',
+        // *claude* regra de negócio nova (DOCUMENTO): a Tela é obrigatória só
+        // nesse tipo — ela "ancora" rel_tabela_base (regra 2). Como
+        // "required_if" não existe aqui (ver comentário acima), essa
+        // obrigatoriedade condicional é validada em
+        // CfgRelatorio::_validarRegrasDocumento(), não neste array. No
+        // Tabular tel_id continua opcional (sem regra nenhuma aqui).
         'rel_formato'       => 'required|in_list[P,L]',
         // Fontes de 6 a 16pt
         'rel_tamanho_fonte' => 'required|integer|greater_than_equal_to[6]|less_than_equal_to[16]',
@@ -90,8 +119,10 @@ class ConfigRelatoriosModel extends Model
             $builder->where('rel_id', $rel_id);
             return $builder->get()->getFirstRow(EntCfgRelatorios::class);
         }
-
-        return $builder->get()->getResult(EntCfgRelatorios::class);
+        $builder->orderBy('rel_ativo');
+        $ret = $builder->get()->getResult();
+        // debug($db->getLastQuery());
+        return $ret;
     }
 
     /**

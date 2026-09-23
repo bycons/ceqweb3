@@ -29,7 +29,7 @@ class EntOcoTipoAcao extends Entity
         $this->campos = $this->defCampos($show);
     }
 
-    
+
     public function defCampos($dados = false, $show = false)
     {
         $ret = [];
@@ -51,17 +51,21 @@ class EntOcoTipoAcao extends Entity
         $opcex['2'] = 'Listar Telas';
         $opcex['3'] = 'Listar Movimentações';
         $opcex['4'] = 'Listar Status';
+        $opcex['5'] = 'Notificação de Fornecedor';
+        $opcex['6'] = 'Cancelar Atendimento';
+        $opcex['7'] = 'Cancelar Conferência';
+        $opcex['8'] = 'Cancelar Inspeção';
 
         // Tipo da Ação
         $tipo           =  new MyCampo('oco_tipo_acao', 'tpa_tipo');
         $tipo->valor    = (isset($dados['tpa_tipo'])) ? $dados['tpa_tipo'] : '';
         $tipo->selecionado    = $tipo->valor;
         $tipo->opcoes   = $opcex;
-        $tipo->dispForm     = 'col-2';
+        $tipo->dispForm     = 'col-4';
         $tipo->classep     = 'mb-2';
         $ret['tpa_tipo'] = $tipo->crRadio();
 
         // Retorna os campos do Tipo de Ação
         return $ret;
     }
-}    
+}

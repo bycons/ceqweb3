@@ -20,7 +20,7 @@ class MicrobAnaliseModel extends Model
 {
     protected $DBGroup          = 'dbProduto';
     protected $table            = 'pro_mic_analise';
-    protected $view             = 'vw_pro_mic_analise_relac';
+    protected $view             = 'vw_pro_mic_analise_relac_v2';
     protected $primaryKey       = 'ana_id';
     // protected $useAutoIncremodt = false;
 
@@ -185,7 +185,7 @@ class MicrobAnaliseModel extends Model
     public function getAnaliseLotemb($lote = false)
     {
         $db = db_connect('dbProduto');
-        $builder = $db->table('vw_pro_mic_analise_relac');
+        $builder = $db->table('vw_pro_mic_analise_relac_v2');
 
         $builder->select('*');
         if ($lote != '') {
@@ -211,7 +211,7 @@ class MicrobAnaliseModel extends Model
     public function getAnaliseCod($pro_cod = false, $lot_id = false)
     {
         $db = db_connect('dbProduto');
-        $builder = $db->table('vw_pro_mic_analise_relac');
+        $builder = $db->table('vw_pro_mic_analise_relac_v2');
 
         $builder->select('*');
         if ($pro_cod) {
@@ -232,7 +232,7 @@ class MicrobAnaliseModel extends Model
     public function getAnaliseCodIn($pro_cod = false, $lot_id = false)
     {
         $db = db_connect('dbProduto');
-        $builder = $db->table('vw_pro_mic_analise_relac');
+        $builder = $db->table('vw_pro_mic_analise_relac_v2');
 
         $builder->select('*');
         if ($pro_cod) {
@@ -253,7 +253,7 @@ class MicrobAnaliseModel extends Model
     public function getAnaliseClasse($classe)
     {
         $db = db_connect('dbProduto');
-        $builder = $db->table('vw_pro_mic_analise_relac');
+        $builder = $db->table('vw_pro_mic_analise_relac_v2');
 
         $builder->select('*');
         if ($classe) {
@@ -528,5 +528,59 @@ class MicrobAnaliseModel extends Model
         $ret['tmo_id_rep']      = $movi->crSelect();
 
         return $ret;
+    }
+
+    /**
+     * Busca análises filtrando por Produto (múltiplos pro_id), Lote (parcial)
+     * e período de entrada do lote — usado na tela AnaliseMP (busca combinada).
+     */
+    public function getAnaliseFiltro($proIds = [], $lote = '', $dtIni = null, $dtFim = null, $ordenarPorNome = false)
+    {
+        $db      = db_connect('dbProduto');
+        $builder = $db->table('vw_pro_mic_analise_relac_v2');
+        $builder->select('*');
+
+        if (! empty($proIds)) {
+            $builder->whereIn('pro_id', $proIds);
+        }
+        if ($lote !== '') {
+            $builder->like('lot_lote', $lote);
+        }
+        if ($dtIni && $dtFim) {
+            $builder->where('ana_data >=', $dtIni);
+            $builder->where('ana_data <=', $dtFim);
+        }
+
+        if ($ordenarPorNome) {
+            $builder->orderBy('pro_despro', 'ASC');
+        } else {
+            $builder->orderBy('ana_data', 'DESC');
+        }
+
+        $ret = $builder->get()->getResultArray();
+        // debug($db->getLastQuery());
+        return $ret;
+    }
+
+    public function getStatusPorIds(array $sttIds)
+    {
+        if (empty($sttIds)) {
+            return [];
+        }
+
+        $db      = db_connect('dbProduto');
+        $builder = $db->table('vw_pro_mic_analise_relac_v2');
+        $builder->select('stt_id, stt_nome, stt_cor');
+        $builder->whereIn('stt_id', $sttIds);
+        $builder->groupBy('stt_id');
+
+        $rows = $builder->get()->getResultArray();
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[$r['stt_id']] = $r;
+        }
+
+        return $map;
     }
 }

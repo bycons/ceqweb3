@@ -12,7 +12,7 @@ class ProdutFabricanteModel extends Model
     protected $table            = 'pro_sap_fabricante';
     protected $view             = 'pro_sap_fabricante';
     protected $primaryKey       = 'fab_codFab';
-    // protected $useAutoIncremodt = false;
+    // protected $useAutoIncremodt = false;a
 
     protected $returnType       = EntFabricante::class;
     protected $useSoftDeletes   = false;

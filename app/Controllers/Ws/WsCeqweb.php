@@ -158,7 +158,7 @@ class WsCeqweb extends ResourceController
                     $sql_lote = [
                         'lot_codbar'    => $codBar,
                         'lot_codpro'    => $codErp,
-                        'lot_lote'      => $codLot,
+                        'lot_lote'      => trim($codLot),
                         'lot_entrada'   => $datEnt,
                         'lot_validade'  => $datVal,
                         'stt_id'        => $status
@@ -858,6 +858,11 @@ class WsCeqweb extends ResourceController
     public function integraOrigem()
     {
         $r_orig = $this->busca_sap->buscaOrigem();
+        if ($r_orig instanceof \stdClass) {
+            $r_orig = get_object_vars($r_orig) ? [$r_orig] : [];
+        } elseif (!is_array($r_orig)) {
+            $r_orig = [];
+        }
         $orioss = [];
         for ($d = 0; $d < count($r_orig); $d++) {
             $ori = $r_orig[$d];
@@ -879,6 +884,11 @@ class WsCeqweb extends ResourceController
     public function integraFamilia()
     {
         $r_famg = $this->busca_sap->buscaFamilia();
+        if ($r_famg instanceof \stdClass) {
+            $r_famg = get_object_vars($r_famg) ? [$r_famg] : [];
+        } elseif (!is_array($r_famg)) {
+            $r_famg = [];
+        }
         $famoss = [];
         for ($d = 0; $d < count($r_famg); $d++) {
             $fam = $r_famg[$d];
@@ -901,6 +911,11 @@ class WsCeqweb extends ResourceController
     public function integraFabricante()
     {
         $r_fabs = $this->busca_sap->buscaFabricante();
+        if ($r_fabs instanceof \stdClass) {
+            $r_fabs = get_object_vars($r_fabs) ? [$r_fabs] : [];
+        } elseif (!is_array($r_fabs)) {
+            $r_fabs = [];
+        }
         log_message('info', 'Fabricantes Retornados ' . json_encode($r_fabs));
         for ($d = 0; $d < count($r_fabs); $d++) {
             $fab = $r_fabs[$d];

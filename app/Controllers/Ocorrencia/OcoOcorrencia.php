@@ -79,6 +79,8 @@ class OcoOcorrencia extends BaseController
     {
         $campos = montaColunasCampos($this->data, 'oco_id');
         $dados  = $this->ocorrencia->getListaCompleta();
+        // Filtra por perfil
+        $dados = filtrarPorPerfil($dados);
         // debug($dados, true);
         $base_url      = base_url('OcoTrataOcorrencia');
         $oco_ids_assoc = array_map(
@@ -88,6 +90,7 @@ class OcoOcorrencia extends BaseController
         $logcriou = buscaLogTabelaFirst('oco_ocorrencia', $oco_ids_assoc);
         // debug($logcriou, true);
         foreach ($dados as $nov) {
+            unset($nov->oco_ativo);
 
             // finalizado por e gerado por:
             $nov->acao_person = [];
@@ -327,6 +330,8 @@ class OcoOcorrencia extends BaseController
             $fields['fab_apeFab'],
             $fields['lot_validade_show'],
             $fields['lot_validade'],
+            $fields['num_req_show'],
+            $fields['req_tmo_nome_show'],
             $fields['pro_despro'],
             $fields['oco_qtd'],
             $fields['oco_descricao'],
@@ -719,8 +724,14 @@ class OcoOcorrencia extends BaseController
                 if ($acao) {
                     $postado['tpa_id'] = $acao->tpa_id ?? null;
                     $postado['tmo_id'] = $acao->tmo_id ?? null;
-                    // $postado['tel_id'] = $acao->tel_id ?? null;
                 }
+            }
+
+            // Tela de Origem — tela de onde a ocorrência está sendo criada
+            // (ex.: a própria OcoOcorrencia, ou outra tela quando já vier
+            // postada, como no fluxo addOutraTela/storetmp).
+            if (empty($postado['tel_id'])) {
+                $postado['tel_id'] = $this->data['tel_id'] ?? null;
             }
             // cria data se não veio do form
             if (empty($postado['oco_data'])) {

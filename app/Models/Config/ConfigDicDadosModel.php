@@ -217,6 +217,97 @@ class ConfigDicDadosModel extends Model
     }
 
     /**
+     * *claude* Verifica se existem duas tabelas relacionadas entre si por FK
+     * (real ou "potencial", por convenção de nome — getRelacionamentos() já
+     * cobre os dois casos), em QUALQUER direção (A→B ou B→A), 1 hop.
+     *
+     * Usado pelas regras de negócio do tipo DOCUMENTO do gerador de
+     * relatórios (CfgRelatorio) — ver CfgRelatorio::_validarRegrasDocumento().
+     *
+     * Nota de implementação: getRelacionamentos($tabelaA) já devolve, no
+     * mesmo array 'relacionamentos', tanto os relacionamentos "diretos" (A tem
+     * FK apontando pra outra tabela — TABLE_NAME=A, REFERENCED_TABLE_NAME=a
+     * outra tabela) quanto os "reversos" (uma tabela filha tem FK apontando
+     * pra A — nesse caso o método já devolve REFERENCED_TABLE_NAME = a tabela
+     * filha, ver _obterRelacionamentosReversos()). Por isso comparar só
+     * REFERENCED_TABLE_NAME já cobre as duas direções a partir de uma única
+     * chamada; ainda assim, por segurança, confere nos dois sentidos
+     * (getRelacionamentos($tabelaA) e getRelacionamentos($tabelaB)).
+     */
+    public function tabelasRelacionadas(string $tabelaA, string $tabelaB): bool
+    {
+        if ($tabelaA === '' || $tabelaB === '') {
+            return false;
+        }
+
+        if ($tabelaA === $tabelaB) {
+            return true;
+        }
+
+        $relsA = $this->getRelacionamentos($tabelaA);
+        foreach ($relsA['relacionamentos'] as $r) {
+            if (($r['REFERENCED_TABLE_NAME'] ?? '') === $tabelaB || ($r['TABLE_NAME'] ?? '') === $tabelaB) {
+                return true;
+            }
+        }
+
+        $relsB = $this->getRelacionamentos($tabelaB);
+        foreach ($relsB['relacionamentos'] as $r) {
+            if (($r['REFERENCED_TABLE_NAME'] ?? '') === $tabelaA || ($r['TABLE_NAME'] ?? '') === $tabelaA) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * *claude* Nome da coluna de $tabelaDetalhe que é FK (real ou potencial)
+     * para a PK de $tabelaBase, ou null se não existir nenhuma.
+     *
+     * Usado pelo tipo DOCUMENTO do gerador de relatórios (CfgRelatorio) pra
+     * calcular rel_detalhe_campo_vinculo automaticamente — deixou de ser
+     * escolha livre do admin (ver CfgRelatorio::_storeDocumento()).
+     *
+     * Só olha o sentido "direto" (TABLE_NAME === $tabelaDetalhe &&
+     * REFERENCED_TABLE_NAME === $tabelaBase) — é o único sentido em que
+     * $tabelaDetalhe de fato TEM a FK (a coluna que vai em WHERE
+     * tabela_detalhe.<vinculo> = :id_registro precisa existir em
+     * $tabelaDetalhe, nunca em $tabelaBase). Se houver mais de uma FK
+     * candidata (raro), retorna a primeira em ordem alfabética de
+     * COLUMN_NAME — determinístico, sem UI de desambiguação nesta primeira
+     * versão.
+     */
+    public function buscarCampoVinculo(string $tabelaDetalhe, string $tabelaBase): ?string
+    {
+        if ($tabelaDetalhe === '' || $tabelaBase === '') {
+            return null;
+        }
+
+        $rels = $this->getRelacionamentos($tabelaDetalhe);
+
+        $candidatos = [];
+        foreach ($rels['relacionamentos'] as $r) {
+            if (
+                ($r['TABLE_NAME'] ?? '') === $tabelaDetalhe
+                && ($r['REFERENCED_TABLE_NAME'] ?? '') === $tabelaBase
+                && !empty($r['COLUMN_NAME'])
+            ) {
+                $candidatos[] = $r['COLUMN_NAME'];
+            }
+        }
+
+        if (empty($candidatos)) {
+            return null;
+        }
+
+        $candidatos = array_unique($candidatos);
+        sort($candidatos);
+
+        return $candidatos[0];
+    }
+
+    /**
      * Obtém relacionamentos com constraint definido no banco
      */
     private function _obterRelacionamentosTabela($db, $nome_tabela, $schema)
@@ -687,12 +778,17 @@ class ConfigDicDadosModel extends Model
     public function getCampoChave($nome_tabela)
     {
         $dbGrSche = $this->getDbGroupAndSchema($nome_tabela);
+        // debug($dbGrSche['dbGroup']);
         $array = ['table_name' => $nome_tabela];
         // $db = db_connect();
-        $db      = db_connect($this->DBGroup);
-        $builder = $db;
-        // $builder = $this->builder('information_schema.columns');
-        $builder->select('TABLE_NAME, COLUMN_NAME, 
+        $db      = db_connect($dbGrSche['dbGroup']);
+        // debug($db);
+        // *claude* $builder = $db (sem ->table()) não funciona: BaseConnection
+        // não tem select()/where()/get() — só QueryBuilder tem, obtido via
+        // ->table(). Sem isso, essa chamada sempre estourava
+        // "Call to undefined method ...Connection::select()".
+        $builder = $db->table('information_schema.columns');
+        $builder->select('TABLE_NAME, COLUMN_NAME,
                                 IS_NULLABLE, 
                                 DATA_TYPE, 
                                 COALESCE(`CHARACTER_MAXIMUM_LENGTH`, NUMERIC_PRECISION) AS COLUMN_SIZE, 
@@ -702,8 +798,10 @@ class ConfigDicDadosModel extends Model
         $builder->where('COLUMN_KEY', 'PRI');
         $builder->where('table_schema', $dbGrSche['schema']);
 
+        // debug($builder);
         $ret = $builder->get()->getResultArray();
-
+        // debug($db->getLastQuery());
+        // debug($ret);
         return $ret;
     }
 

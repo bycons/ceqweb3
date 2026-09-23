@@ -1181,6 +1181,12 @@ function addCampo(url, objdest, obj) {
   retornoAjax = false;
   executaAjax(url, "json");
   if (retornoAjax) {
+    // Atualiza o data-index do próprio botão "+" para o índice recém-usado.
+    // Sem isso, um segundo clique volta a ler o data-index antigo (nunca
+    // avançado) e recalcula o mesmo "proximo" da vez anterior, duplicando
+    // o índice/id da linha adicionada — daí, alterar uma linha refletia em
+    // todas as linhas que compartilhavam o id duplicado.
+    obj.setAttribute("data-index", proximo);
     ctador = retornoAjax.length;
     text =
       "<div class='row tableDiv table2 mb-4 table-" +
@@ -1850,12 +1856,15 @@ function readURL(input, id, largura, altura) {
         .attr("src", tipo[""])
         .width(largura)
         .height(altura); // Reset imagem
-      jQuery("#nome_arquivo_" + id).text(""); // Limpa nome do arquivo
+      jQuery('[id="nome_arquivo_' + id + '"]').text(""); // Limpa nome do arquivo
       return;
     }
 
     // Exibe o nome do arquivo na div apropriada
-    jQuery("#nome_arquivo_" + id).text(file.name);
+    // Usa seletor de atributo (não "#id") pois campos de linhas repetidas
+    // (crArquivo dentro de listas) têm id com colchetes, ex: "campo[3]",
+    // o que quebraria um seletor de ID puro do jQuery/CSS.
+    jQuery('[id="nome_arquivo_' + id + '"]').text(file.name);
 
     let tipoarq = file.type || "application/" + file.name.slice(-3);
 

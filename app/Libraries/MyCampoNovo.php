@@ -22,7 +22,7 @@ use App\Models\Config\ConfigDicDadosModel;
  *   $campo->nome   = 'meu_campo';
  *   echo $campo->crInput();
  */
-class MyCampoNovo
+class MyCampo
 {
     // -------------------------------------------------------------------------
     // Constantes
@@ -753,8 +753,13 @@ class MyCampoNovo
     {
         $colunas = $this->resolverColunas();
         $mb      = str_contains($this->classep, 'semmb') ? 'm-0' : 'mb-3';
+        $ht       = 'nãoauto';
 
-        $html  = "<div id='ig_{$this->id}' class='row {$colunas} float-start align-items-center d-inline-flex {$mb}'>";
+        if ($this->tipo === 'check') {
+            $ht = 'h-auto';
+        }
+
+        $html  = "<div id='ig_{$this->id}' class='row {$colunas} float-start align-items-center d-inline-flex {$mb} {$ht}'>";
 
         // Texto informativo acima do label
         if ($this->infotop !== '') {

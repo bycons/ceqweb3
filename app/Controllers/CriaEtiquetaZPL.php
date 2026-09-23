@@ -413,7 +413,7 @@ class CriaEtiquetaZPL extends BaseController
 
     //         if ($telas && !empty($telas['tel_model'])) {
     //             $model = $telas['tel_model'];
-    //             $model_atual = model(localizaModel($model));
+    //             $model_atual = model("App\\Models\\" . substr($model, 0, 6) . "\\" . $model);
     //             $view   = $model_atual->view;
     //             if (isset($model_atual->viewoutra)) {
     //                 $view   = $model_atual->viewoutra;
@@ -531,7 +531,7 @@ class CriaEtiquetaZPL extends BaseController
             if ($telas && !empty($telas['tel_model'])) {
 
                 $model = $telas['tel_model'];
-                $model_atual = model(localizaModel($model));
+                $model_atual = model("App\\Models\\" . substr($model, 0, 6) . "\\" . $model);
 
                 $view = $model_atual->view ?? null;
                 if (isset($model_atual->viewoutra)) {
@@ -690,7 +690,7 @@ class CriaEtiquetaZPL extends BaseController
 
             if ($telas && !empty($telas->tel_model)) {
                 $model = $telas->tel_model;
-                $model_atual = model(localizaModel($model));
+                $model_atual = model("App\\Models\\" . substr($model, 0, 6) . "\\" . $model);
                 $view   = $model_atual->view;
                 if (isset($model_atual->viewoutra)) {
                     $view   = $model_atual->viewoutra;
@@ -773,7 +773,7 @@ class CriaEtiquetaZPL extends BaseController
         $telas = (array) $this->tela->getTelaId($tel_id)[0] ?? null;
         if ($telas && !empty($telas['tel_model'])) {
             $model = $telas['tel_model'];
-            $model_atual = model(localizaModel($model));
+            $model_atual = model("App\\Models\\" . substr($model, 0, 6) . "\\" . $model);
             $view   = $model_atual->view;
             if (isset($model_atual->viewoutra)) {
                 $view   = $model_atual->viewoutra;
