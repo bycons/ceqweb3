@@ -88,3 +88,7 @@ results/
 writable/*
 !writable/.htaccess
 !writable/index.html
+
+# lixo de copias e arquivos de execucao
+*-DESK-DOUGLAS*
+*.pid
