@@ -80,3 +80,6 @@ nb-configuration.xml
 _modules/
 results/
 /api/
+
+# temporarios do Office
+~$*
