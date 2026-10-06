@@ -172,33 +172,52 @@ class EntRequisicao extends Entity
             'req_depdestino'
         );
 
-        // Considerar consumo do dia anterior
-        $coda              = new MyCampo('est_requisicao', 'req_consdiaanterior', false);
-        $coda->valor       = (isset($dados->req_consdiaanterior)) ? $dados->req_consdiaanterior : 'S';
-        $coda->leitura     = $show;
-        $coda->opcoes      = $simnao;
-        $coda->selecionado = $coda->valor;
-        $coda->classep     = 'semmb';
-        $coda->dispForm    = ($show) ? 'col-6' : 'col-3';
-        if (! $show) {
-            // $coda->funcChan       = "mostraOcultaCampo(this,'N','req_medconsumodias,req_meddias');mudaCheck2opcoes(this,'req_medconsumodias');";
-            $coda->funcChan = "mostraOcultaCampo(this,'N','req_medconsumodias,req_meddias');";
-        }
-        $ret['req_consdiaanterior'] = $coda->cr2opcoes();
+        // Considerar consumo do dia anterior / Média de consumo por dias
+        $diaAnteriorValor  = (isset($dados->req_consdiaanterior)) ? $dados->req_consdiaanterior : 'S';
+        $mediaConsumoValor = (isset($dados->req_medconsumodias)) ? $dados->req_medconsumodias : 'N';
 
-        // Média de consumo por dias
-        $mcdi              = new MyCampo('est_requisicao', 'req_medconsumodias', false);
-        $mcdi->valor       = (isset($dados->req_medconsumodias)) ? $dados->req_medconsumodias : 'S';
-        $mcdi->leitura     = $show;
-        $mcdi->opcoes      = $simnao;
-        $mcdi->selecionado = $mcdi->valor;
-        $mcdi->classep     = 'mb2';
-        $mcdi->dispForm    = ($show) ? 'col-6' : 'col-3';
-        if (! $show) {
-            // $mcdi->funcChan       = "mostraOcultaCampo(this,'S','req_meddias');mudaCheck2opcoes(thiqs,'req_consdiaanterior');";
-            $mcdi->funcChan = "mostraOcultaCampo(this,'S','req_meddias');";
+        if ($show) {
+            // Tela de consulta/edição de acompanhamento: mantém os 2 campos exatamente como antes
+            $coda              = new MyCampo('est_requisicao', 'req_consdiaanterior', false);
+            $coda->valor       = $diaAnteriorValor;
+            $coda->leitura     = $show;
+            $coda->opcoes      = $simnao;
+            $coda->selecionado = $coda->valor;
+            $coda->classep     = 'mb2';
+            $coda->dispForm    = 'col-6';
+            $ret['req_consdiaanterior'] = $coda->cr2opcoes();
+
+            $mcdi              = new MyCampo('est_requisicao', 'req_medconsumodias', false);
+            $mcdi->valor       = $mediaConsumoValor;
+            $mcdi->leitura     = $show;
+            $mcdi->opcoes      = $simnao;
+            $mcdi->selecionado = $mcdi->valor;
+            $mcdi->classep     = 'mb2';
+            $mcdi->dispForm    = 'col-6';
+            $ret['req_medconsumodias'] = $mcdi->cr2opcoes();
+        } else {
+            // Tela de inclusão: os 2 campos reais ficam ocultos (o Store continua recebendo
+            // req_consdiaanterior/req_medconsumodias com 'S'/'N' normalmente); na tela aparece
+            // só um cr2opcoes "Tipo de Consumo", sincronizado via JS (trocaTipoConsumo()).
+            $coda        = new MyCampo('est_requisicao', 'req_consdiaanterior', false);
+            $coda->valor = $diaAnteriorValor;
+            $ret['req_consdiaanterior'] = $coda->crOculto();
+
+            $mcdi        = new MyCampo('est_requisicao', 'req_medconsumodias', false);
+            $mcdi->valor = $mediaConsumoValor;
+            $ret['req_medconsumodias'] = $mcdi->crOculto();
+
+            $tpco              = new MyCampo();
+            $tpco->nome        = $tpco->id = 'req_tipoconsumo';
+            $tpco->label       = 'Tipo de Consumo';
+            $tpco->opcoes      = ['DIA' => 'Dia Anterior', 'MEDIA' => 'Média de Consumo'];
+            $tpco->valor       = ($diaAnteriorValor === 'N' && $mediaConsumoValor === 'S') ? 'MEDIA' : 'DIA';
+            $tpco->selecionado = $tpco->valor;
+            $tpco->classep     = 'mb2';
+            $tpco->dispForm    = 'col-3';
+            $tpco->funcChan    = 'trocaTipoConsumo(this);';
+            $ret['req_tipoconsumo'] = $tpco->cr2opcoes();
         }
-        $ret['req_medconsumodias'] = $mcdi->cr2opcoes();
 
         // Quantidade de dias para cálculo de média
         $medi               = new MyCampo('est_requisicao', 'req_meddias', false);
@@ -326,7 +345,7 @@ class EntRequisicao extends Entity
         // $canc->dispForm       = 'col-12';
         $canc->funcChan       = 'acertaSaldoReq(this)';
         $canc->size           = 4;
-        $canc->largura        = 12;
+        $canc->largura        = 15;
         $ret['rpa_cancelada'] = $canc->crInput();
 
         // Campo para quantidade atendida
@@ -347,7 +366,7 @@ class EntRequisicao extends Entity
         $aten->minimo        = 0;
         $aten->maximo        = $dados->rep_quantia;
         $aten->funcChan      = 'acertaSaldoReq(this)';
-        $aten->largura       = 12;
+        $aten->largura       = 15;
         $ret['rpa_atendida'] = $aten->crInput();
 
         $aten              = new MyCampo('est_requisicao_produto_atendimento', 'rpa_data', false);

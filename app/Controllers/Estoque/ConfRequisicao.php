@@ -109,7 +109,7 @@ class ConfRequisicao extends BaseController
         foreach ($dados_requis as $req) {
             // Verificar se o log já está disponível para esse req_id
             if ($req->req_id) {
-                $req->usu_nome = buscaUsuarioLog($log[$req->req_id]);
+                $req->usu_nome = buscaUsuarioLog($log[$req->req_id] ?? []);
 
                 // Concatenar o URL de forma mais eficiente
                 $url_eti = base_url('/EtqMisturador/Etiqueta/' . $req->req_id);
@@ -310,7 +310,7 @@ class ConfRequisicao extends BaseController
                 $bt_insvis->i_cone   = "<i class='fab fa-searchengin'></i>";
                 $bt_insvis->label    = '';
                 $bt_insvis->place    = 'Inspeção Visual';
-                $bt_insvis->funcChan = "gerarInspecao(48, {$prod->rep_id})";
+                $bt_insvis->funcChan = "gerarInspecao({$this->data['tel_id']}, {$prod->rep_id})";
                 $btinsvis            = $bt_insvis->crBotao() . $badge;
 
                 $bt_ok              = new MyCampo();
@@ -526,7 +526,7 @@ class ConfRequisicao extends BaseController
 
 
                 // ── Movimento antes do update ───────────────────────────────────
-                if ($aprovaValido && (int) $val->rpa_conferida > 0) {
+                if ($aprovaValido && (int) $val->rpa_conferida > 0 && (int) $val->rpa_conferida == (int) $val->rpa_atendida) {
                     $movs = [[
                         'id'      => $postado['tmo_id'],
                         'qt'      => $val->rpa_conferida,
@@ -542,7 +542,9 @@ class ConfRequisicao extends BaseController
                         continue;
                     }
                     $aprovada[] = $val->repid;
-                } elseif (! $aprovaValido && $val->rpa_conferida != $val->rpa_atendida) {
+                    // } elseif (! $aprovaValido && $val->rpa_conferida != $val->rpa_atendida) {
+                    /* SANDRA inventou uma regra nova que desconsidera o aprovaodo*/
+                } elseif ($val->rpa_conferida != $val->rpa_atendida) {
                     $qtia = (int) ($val->rpa_atendida - $val->rpa_conferida);
                     if ($qtia > 0) {
                         $movs = [[
@@ -560,7 +562,7 @@ class ConfRequisicao extends BaseController
                             $ret['msg']  = $movim['mensagem'];
                             continue;
                         }
-                        #TODO gerar a ocorrência
+
                         $sutid = 56;
                         $classes = (new OcorreSubtOcorrenciaModel())->getClassePorSubtipo($sutid) ?? [];
                         $idsClasses = array_column($classes, 'cla_id');
@@ -581,7 +583,7 @@ class ConfRequisicao extends BaseController
                         $sql_oco = [
                             'tpo_id'        => 3, // tipo
                             'sut_id'        => $sutid, // subtipo
-                            'tel_id'        => 48, // tela de ocorrencia
+                            'tel_id'        => $this->data['tel_id'], // tela de origem (ConfRequisicao)
                             'req_id'        => $postado['req_id'],
                             'rep_id'        => $val->repid,
                             'rpo_descricao' => 'Divergência na Conferência da Requisição Nº ' . $nreq,

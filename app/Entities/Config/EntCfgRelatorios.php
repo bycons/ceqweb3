@@ -22,6 +22,9 @@ class EntCfgRelatorios extends Entity
         // *claude* só usada quando rel_tipo_saida=DOCUMENTO — tabela de
         // origem da coluna escolhida como Título. NULL/sem uso no Tabular.
         'rel_titulo_tabela'          => null,
+        // *claude* só DOCUMENTO (usuário, 2026-10-05) — coluna vinculada ao
+        // Título; rel_titulo é o texto livre.
+        'rel_titulo_campo'           => null,
         // *claude* TABULAR (comportamento original) | DOCUMENTO (cabeçalho +
         // tabela repetível + textos livres) — default retrocompatível.
         'rel_tipo_saida'             => 'TABULAR',
@@ -68,7 +71,7 @@ class EntCfgRelatorios extends Entity
             ->setObrigatorio()
             ->setMinLength(5)
             ->setMaxLength(50)
-            ->setDispForm('col-6')
+            ->setDispForm('col-12')
             ->setLeitura($show)
             ->crInput();
 
@@ -85,7 +88,7 @@ class EntCfgRelatorios extends Entity
             ->setValor($dados['rel_tipo_saida'] ?? 'TABULAR')
             ->setSelecionado($dados['rel_tipo_saida'] ?? 'TABULAR')
             ->setOpcoes(['TABULAR' => 'Tabular (lista)', 'DOCUMENTO' => 'Documento '])
-            ->setDispForm('col-6')
+            ->setDispForm('col-12')
             ->setLeitura($show || $tipoTravado)
             ->cr2opcoes();
 
@@ -137,42 +140,55 @@ class EntCfgRelatorios extends Entity
             $configTela
         );
 
-        // *claude* Regra nova (byarq/usuário): no DOCUMENTO, rel_titulo deixa
-        // de ser texto livre — é um campo selecionável igual aos de
-        // Cabeçalho (rcc_campo), podendo vir de rel_tabela_base OU
-        // rel_tabela_detalhe. No TABULAR continua EXATAMENTE como sempre foi
-        // (texto livre, crInput()).
+        // *claude* DOCUMENTO (usuário, 2026-10-05): Título igual ao Rodapé —
+        // texto livre (rel_titulo) e/ou campo vinculado (rel_titulo_campo,
+        // de rel_tabela_base OU rel_tabela_detalhe), impressos nessa ordem.
+        // "Ao menos um dos dois" validado em CfgRelatorio::store(). No
+        // TABULAR continua EXATAMENTE como sempre foi (texto livre, crInput()).
         if (($dados['rel_tipo_saida'] ?? 'TABULAR') === 'DOCUMENTO') {
+            $texto = (new MyCampo('cfg_relatorios', 'rel_titulo'))
+                ->setLabel('Título')
+                ->setValor($dados['rel_titulo'] ?? '')
+                ->setObrigatorio()
+                ->setDispForm('col-4')
+                ->setLargura(40)
+                ->setLeitura($show);
+            $texto->linhas = 1;
+            $ret['rel_titulo'] = $texto->crTexto();
+
             // crSelect() puro, SEM crDepende()/setPai() — mesmo motivo de
             // rcc_campo/rct_campo/rtx_campo: depende de DUAS tabelas ao mesmo
             // tempo, população via JS customizado (atualizaCamposDocumento(),
             // my_relatorio.js), não pelo mecanismo genérico de 1 campo pai.
-            // Opções vazias aqui — só a opção pré-selecionada (vinda do
-            // banco) é semeada, no mesmo formato composto "tabela|campo|
-            // tamanho|tipo" usado pelo resto do picker do gerador (tamanho/
-            // tipo não são usados pelo Título, ficam zerados/vazios só pra
-            // reaproveitar o mesmo parsing já existente no JS).
+            // Só a opção pré-selecionada (vinda do banco) é semeada, no mesmo
+            // formato composto "tabela|campo|tamanho|tipo" do resto do picker.
             $opcaoTitulo = [];
-            if (!empty($dados['rel_titulo'])) {
-                $selecionadoTitulo = ($dados['rel_titulo_tabela'] ?? '') . '|' . $dados['rel_titulo'] . '|0|';
-                $opcaoTitulo[$selecionadoTitulo] = '[' . ($dados['rel_titulo_tabela'] ?? '') . '] ' . ucwords(str_replace('_', ' ', $dados['rel_titulo']));
+            if (!empty($dados['rel_titulo_campo'])) {
+                $selecionadoTitulo = ($dados['rel_titulo_tabela'] ?? '') . '|' . $dados['rel_titulo_campo'] . '|0|';
+                $opcaoTitulo[$selecionadoTitulo] = '[' . ($dados['rel_titulo_tabela'] ?? '') . '] ' . ucwords(str_replace('_', ' ', $dados['rel_titulo_campo']));
             }
+            $selecionadoTitulo = $opcaoTitulo ? array_key_first($opcaoTitulo) : '';
+            $opcaoTitulo       = ['' => '(Nenhum — só texto)'] + $opcaoTitulo;
 
-            $ret['rel_titulo'] = (new MyCampo('cfg_relatorios', 'rel_titulo'))
-                ->setValor($opcaoTitulo ? array_key_first($opcaoTitulo) : '')
-                ->setSelecionado($opcaoTitulo ? array_key_first($opcaoTitulo) : '')
+            $ret['rel_titulo_campo'] = (new MyCampo('cfg_relatorios', 'rel_titulo_campo'))
+                ->setLabel('Campo do Título')
+                ->setValor($selecionadoTitulo)
+                ->setSelecionado($selecionadoTitulo)
                 ->setOpcoes($opcaoTitulo)
-                ->setObrigatorio()
-                ->setDispForm('col-8')
+                ->setDispForm('col-4')
+                ->setLargura(40)
                 ->setLeitura($show)
                 ->crSelect();
         } else {
-            $ret['rel_titulo'] = (new MyCampo('cfg_relatorios', 'rel_titulo'))
+            $texto = (new MyCampo('cfg_relatorios', 'rel_titulo'))
+                ->setLabel('Título')
                 ->setValor($dados['rel_titulo'] ?? '')
                 ->setObrigatorio()
-                ->setDispForm('col-8')
-                ->setLeitura($show)
-                ->crInput();
+                ->setDispForm('col-4')
+                ->setLargura(40)
+                ->setLeitura($show);
+            $texto->linhas = 1;
+            $ret['rel_titulo'] = $texto->crTexto();
         }
 
         $opTabelas = [];
@@ -242,7 +258,7 @@ class EntCfgRelatorios extends Entity
         $campoVinculoDisplay           = new MyCampo();
         $campoVinculoDisplay->nome     = 'rel_detalhe_campo_vinculo_display';
         $campoVinculoDisplay->id       = 'rel_detalhe_campo_vinculo_display';
-        $campoVinculoDisplay->label    = 'Coluna de Vínculo (calculada automaticamente)';
+        $campoVinculoDisplay->label    = 'Chave';
         $campoVinculoDisplay->hint     = 'FK de rel_tabela_detalhe que aponta pra PK de rel_tabela_base — calculada automaticamente ao escolher as tabelas, não é uma escolha manual.';
         $campoVinculoDisplay->tipo     = 'text';
         $campoVinculoDisplay->objeto   = 'input';

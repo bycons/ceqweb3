@@ -170,6 +170,9 @@ class EtqMisturador extends BaseController
         if (count($produtosreq) > 0) {
             for ($p = 0; $p < count($produtosreq); $p++) {
                 $prod = $produtosreq[$p];
+                if ($prod->prc_etiq_misturador != 'S') {
+                    continue; // Pula produtos que não precisam de etiqueta de misturador
+                }
 
                 $rep_id   = $prod->rep_id;
                 $qtia     = $prod->rep_quantia;

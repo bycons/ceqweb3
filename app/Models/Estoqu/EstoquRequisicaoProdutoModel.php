@@ -113,4 +113,16 @@ class EstoquRequisicaoProdutoModel extends Model
         return $builder->get()->getResultArray();
     }
 
+    public function getRepId($req_id, $pro_id)
+    {
+        $db = db_connect('dbEstoque');
+        $builder = $db->table($this->table);
+        $builder->select('rep_id');
+        $builder->where('req_id', $req_id);
+        $builder->where('pro_id', $pro_id);
+        $row = $builder->get()->getRowArray();
+
+        return $row['rep_id'] ?? null;
+    }
+
 }

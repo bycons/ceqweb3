@@ -20,6 +20,7 @@ class ConfigRelColunasDocModel extends Model
         'rel_id',
         'rct_tabela',
         'rct_campo',
+        'rct_texto',
         'rct_label',
         'rct_tamanho',
         'rct_tipo_dado',
@@ -29,9 +30,8 @@ class ConfigRelColunasDocModel extends Model
 
     protected $validationRules = [
         'rel_id'      => 'required|integer',
-        'rct_tabela'  => 'required',
-        'rct_campo'   => 'required',
-        'rct_label'   => 'required',
+        // rct_texto e/ou rct_campo, rótulo opcional (usuário, 2026-10-05) —
+        // "ao menos um dos dois" garantido em CfgRelatorio::_extrairColunasDocPost().
         'rct_tamanho' => 'required|integer',
     ];
 

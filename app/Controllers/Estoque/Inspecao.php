@@ -177,7 +177,7 @@ class Inspecao extends BaseController
                 $bt_insvis->i_cone   = "<i class='fa-solid fa-magnifying-glass-arrow-right'></i>";
                 $bt_insvis->label    = '';
                 $bt_insvis->place    = 'Inspeção';
-                $bt_insvis->funcChan = "gerarInspecao({$prod->rep_id})";
+                $bt_insvis->funcChan = "gerarInspecao({$this->data['tel_id']}, {$prod->rep_id})";
                 $prod->bt_insvis     = $bt_insvis->crBotao();
             }
             $fieldsAten = $requisicao->defCamposProdutoAte($prod);

@@ -27,6 +27,9 @@ class ConfigRelatoriosModel extends Model
         // rel_tabela_detalhe; ver CfgRelatorio::store()). No Tabular fica
         // sempre NULL/sem uso — rel_titulo ali continua texto livre.
         'rel_titulo_tabela',
+        // *claude* só DOCUMENTO (usuário, 2026-10-05) — coluna vinculada ao
+        // Título; rel_titulo passa a ser o texto livre (opcional no Documento).
+        'rel_titulo_campo',
         // *claude* tipo de saída do relatório: TABULAR (comportamento original,
         // gera SELECT dinâmico único) | DOCUMENTO (cabeçalho + tabela repetível +
         // textos livres, montado em tempo de impressão a partir de :id_registro).
@@ -51,7 +54,10 @@ class ConfigRelatoriosModel extends Model
     protected $validationRules = [
         'rel_id'            => 'permit_empty|integer',
         'rel_nome'          => 'required|min_length[5]|max_length[50]|is_unique[cfg_relatorios.rel_nome,rel_id,{rel_id}]',
-        'rel_titulo'        => 'required|min_length[3]',
+        // *claude* no DOCUMENTO o Título pode ser só o campo vinculado
+        // (rel_titulo_campo) — obrigatoriedade por tipo validada em
+        // CfgRelatorio::store().
+        'rel_titulo'        => 'permit_empty',
         'rel_tipo_saida'    => 'required|in_list[TABULAR,DOCUMENTO]',
         // *claude* rel_tabela_base é usada tanto pelo Tabular (tabela do SELECT
         // único) quanto pelo Documento (cabeçalho + textos livres) — por isso
@@ -103,7 +109,7 @@ class ConfigRelatoriosModel extends Model
      * Retorna um ou todos os relatórios.
      *
      * @param  int|false $rel_id  ID específico ou false para todos
-     * @param  int|null  $ativo   1 = ativos, 0 = inativos, null = todos
+     * @param  string|null $ativo 'A' = ativos, 'I' = inativos, null = todos
      */
     public function getRelatorios($rel_id = false, $ativo = null)
     {
@@ -134,7 +140,7 @@ class ConfigRelatoriosModel extends Model
         $builder = $db->table($this->view);
         $builder->select('*');
         $builder->where('mod_id', $mod_id);
-        $builder->where('rel_ativo', 1);
+        $builder->where('rel_ativo', 'A');
         $builder->orderBy('rel_titulo');
 
         return $builder->get()->getResult(EntCfgRelatorios::class);
@@ -149,10 +155,37 @@ class ConfigRelatoriosModel extends Model
         $builder = $db->table($this->view);
         $builder->select('*');
         $builder->where('tel_id', $tel_id);
-        $builder->where('rel_ativo', 1);
+        $builder->where('rel_ativo', 'A');
         $builder->orderBy('rel_titulo');
 
         return $builder->get()->getResult(EntCfgRelatorios::class);
+    }
+
+    /**
+     * Relatórios tipo DOCUMENTO ativos vinculados a uma tela e liberados para
+     * o perfil informado — usados pelo botão Imprimir das listagens (ver
+     * Buscas::busca_documentos_tela() e geraDocumentoGenerico() em
+     * my_default.js). Consulta a tabela física (não a view) porque precisa
+     * de rel_tipo_saida.
+     */
+    public function getDocumentosPorTelaPerfil(int $tel_id, int $perfil_id): array
+    {
+        $db      = db_connect('default');
+        $builder = $db->table($this->table . ' r');
+        $builder->select('r.rel_id, r.rel_nome');
+        $builder->where('r.tel_id', $tel_id);
+        $builder->where('r.rel_tipo_saida', 'DOCUMENTO');
+        $builder->where('r.rel_ativo', 'A');
+        $builder->where(
+            'EXISTS (SELECT 1 FROM cfg_rel_permissao rlp WHERE rlp.rel_id = r.rel_id AND rlp.prf_id = ' . $perfil_id . ')',
+            null,
+            false
+        );
+        $builder->orderBy('r.rel_nome');
+
+        $ret = $builder->get()->getResult();
+        // debug($db->getLastQuery());
+        return $ret;
     }
 
     /**
@@ -169,7 +202,7 @@ class ConfigRelatoriosModel extends Model
         $builder->select('r.*');
         // ANTES (BKP 30/06/2026): $builder->join('cfg_rel_permissao rlp', 'rlp.rel_id = r.rel_id', 'inner');
         $builder->where('r.mod_id', $mod_id);
-        $builder->where('r.rel_ativo', 1);
+        $builder->where('r.rel_ativo', 'A');
         // ANTES (BKP 30/06/2026): $builder->where('r.tel_id', null); // IS NULL - sem tela vinculada
         $builder->where('r.tel_id', 0); // a view traz 0 (não NULL) quando não há tela vinculada
         // ANTES (BKP 30/06/2026): $builder->where('rlp.prf_id', $perfil_id);
@@ -197,7 +230,7 @@ class ConfigRelatoriosModel extends Model
         $builder->select('r.*');
         // ANTES (BKP 30/06/2026): $builder->join('cfg_rel_permissao rlp', 'rlp.rel_id = r.rel_id', 'inner');
         $builder->where('r.rel_id', $rel_id);
-        $builder->where('r.rel_ativo', 1);
+        $builder->where('r.rel_ativo', 'A');
         // ANTES (BKP 30/06/2026): $builder->where('r.tel_id', null);
         $builder->where('r.tel_id', 0); // a view traz 0 (não NULL) quando não há tela vinculada
         // ANTES (BKP 30/06/2026): $builder->where('rlp.prf_id', $perfil_id);

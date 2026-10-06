@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Controllers\Estoque;
 
 use App\Controllers\BaseController;
@@ -217,7 +218,7 @@ class EtqProduto extends BaseController
 
         $this->data['icone']       = "<i class='fas fa-tag'></i>"; // ou 'update' se você for criar
         $this->data['desc_metodo'] = ' ';                          // ou 'update' se você for criar
-                                                                   // $this->data['title']   = 'Impressão de Etiquetas de Produtos'; // ou 'update' se você for criar
+        // $this->data['title']   = 'Impressão de Etiquetas de Produtos'; // ou 'update' se você for criar
         $this->data['desc_edicao'] = 'Req. Nº ' . str_pad($id, 6, '0', STR_PAD_LEFT);
         $this->data['secoes']      = $secao;
         $this->data['campos']      = $campos;
@@ -245,7 +246,7 @@ class EtqProduto extends BaseController
 
     //     return json_encode($ret);
     // }
-    public function GeraEtiqueta(int $id, int $qtia): string
+    public function GeraEtiqueta(string $id, int $qtia): string
     {
         $redis     = \Config\Services::redis();
         $sessionId = session_id();
@@ -253,16 +254,35 @@ class EtqProduto extends BaseController
         // 🔑 chave única por sessão + produto + quantidade
         $chave = "etq:{$sessionId}:" . md5($id . '_' . $qtia);
 
-        // 🔍 tenta recuperar do Redis
+        // 🧹 limpa etiquetas anteriores da sessão (produto/qtia diferentes), preservando a atual se já existir
+        $chavesAntigas = $redis->sMembers("etq_session:{$sessionId}");
+        foreach ($chavesAntigas as $chaveAntiga) {
+            if ($chaveAntiga !== $chave) {
+                $redis->del($chaveAntiga);
+                $redis->sRem("etq_session:{$sessionId}", $chaveAntiga);
+            }
+        }
+
+        // 🔍 se já existe uma chave com o mesmo id e qtia, reaproveita
         $cached = $redis->get($chave);
 
         if (! $cached) {
             // 🔄 busca dados apenas se não existir
-            $produtos = $this->requisicao->getRequisicaoRep($id);
+            if (stripos($id, 'L') === 0) {
+                // id de lote, ex: "L123"
+                $produtos = $this->lote->getLote((int) substr($id, 1));
+            } else {
+                $produtos = $this->requisicao->getRequisicaoRep((int) $id);
+
+                if (empty($produtos)) {
+                    $produtos = $this->lote->getLote((int) $id);
+                }
+            }
 
             if (empty($produtos)) {
                 return json_encode([
-                    'erro' => 'Produto não encontrado',
+                    'erro' => true,
+                    'msg' => 'Produto não encontrado',
                 ]);
             }
 
@@ -271,7 +291,7 @@ class EtqProduto extends BaseController
             // 💾 salva no Redis com TTL de 15 minutos (900 segundos)
             $redis->setex($chave, 900, json_encode($produtosreq));
 
-            // 🧠 opcional: rastrear chaves da sessão
+            // 🧠 rastreia a chave da sessão
             $redis->sAdd("etq_session:{$sessionId}", $chave);
         }
 
@@ -286,6 +306,5 @@ class EtqProduto extends BaseController
      *
      * @return void
      */
-    public function store()
-    {}
+    public function store() {}
 }

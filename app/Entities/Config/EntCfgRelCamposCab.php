@@ -14,6 +14,11 @@ use CodeIgniter\Entity\Entity;
  * tabela|campo|tamanho|tipo), sem alinhamento/totalizar (não é coluna
  * tabular) e com `rcc_largura_col` no lugar de `rco_largura` (largura em
  * colunas Bootstrap do grid do PDF/preview, não em caracteres).
+ *
+ * Igual ao Rodapé (usuário, 2026-10-05): cada linha tem texto digitado
+ * (rcc_texto) e/ou campo vinculado (rcc_campo), nenhum dos dois obrigatório
+ * sozinho — linha sem os dois é descartada em
+ * CfgRelatorio::_extrairCamposCabPost().
  */
 class EntCfgRelCamposCab extends Entity
 {
@@ -22,6 +27,7 @@ class EntCfgRelCamposCab extends Entity
         'rel_id'          => null,
         'rcc_tabela'      => null,
         'rcc_campo'       => null,
+        'rcc_texto'       => null,
         'rcc_label'       => null,
         'rcc_tamanho'     => 0,
         'rcc_tipo_dado'   => '',
@@ -80,23 +86,37 @@ class EntCfgRelCamposCab extends Entity
             $opcaoCampo[$selecionado] = '[' . ($dados['rcc_tabela'] ?? '') . '] ' . ucwords(str_replace('_', ' ', $dados['rcc_campo']));
         }
 
+        // Campo vinculado é OPCIONAL (igual ao Rodapé) — a opção vazia
+        // permite ficar só com o texto digitado (my_relatorio.js mantém essa
+        // opção ao repopular o select).
+        $selecionado = $opcaoCampo ? array_key_first($opcaoCampo) : '';
+        $opcaoCampo  = ['' => '(Nenhum — só texto)'] + $opcaoCampo;
+
         $ret['rcc_campo'] = (new MyCampo('cfg_rel_camposcab', 'rcc_campo'))
-            ->setValor($opcaoCampo ? array_key_first($opcaoCampo) : '')
-            ->setSelecionado($opcaoCampo ? array_key_first($opcaoCampo) : '')
+            ->setValor($selecionado)
+            ->setSelecionado($selecionado)
             ->setOpcoes($opcaoCampo)
-            ->setObrigatorio()
             ->setOrdem($pos)
-            ->setDispForm('col-6 float-start')
+            ->setDispForm('col-4 float-start')
             ->setLargura(40)
             ->setLeitura($show)
             ->crSelect();
+
+        $texto = (new MyCampo('cfg_rel_camposcab', 'rcc_texto'))
+            ->setLabel('Texto')
+            ->setValor($dados['rcc_texto'] ?? '')
+            ->setOrdem($pos)
+            ->setDispForm('col-4 float-start')
+            ->setLeitura($show);
+        $texto->linhas = 1;
+        $ret['rcc_texto'] = $texto->crTexto();
 
         // Rótulo opcional (usuário, 2026-09-23) — vazio imprime só o valor.
         $ret['rcc_label'] = (new MyCampo('cfg_rel_camposcab', 'rcc_label'))
             ->setValor($dados['rcc_label'] ?? '')
             ->setOrdem($pos)
-            ->setDispForm('col-4 float-start')
-            ->setLargura(30)
+            ->setDispForm('col-2 float-start')
+            ->setLargura(20)
             ->setLeitura($show)
             ->crInput();
 

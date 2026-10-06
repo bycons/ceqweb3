@@ -18,6 +18,11 @@ use CodeIgniter\Entity\Entity;
  * picker só lista colunas de rel_tabela_base/rel_tabela_detalhe (nunca de
  * tabelas relacionadas a elas). Se for preciso combinar mais tabelas, a
  * saída é criar uma VIEW no banco.
+ *
+ * Igual ao Rodapé (usuário, 2026-10-05): cada coluna tem texto digitado
+ * (rct_texto — repetido em todas as linhas da grade) e/ou campo vinculado
+ * (rct_campo); rótulo opcional. Linha sem texto E sem campo é descartada em
+ * CfgRelatorio::_extrairColunasDocPost(). Largura continua em caracteres.
  */
 class EntCfgRelColunasDoc extends Entity
 {
@@ -26,6 +31,7 @@ class EntCfgRelColunasDoc extends Entity
         'rel_id'        => null,
         'rct_tabela'    => null,
         'rct_campo'     => null,
+        'rct_texto'     => null,
         'rct_label'     => null,
         'rct_tamanho'   => 0,
         'rct_tipo_dado' => '',
@@ -82,24 +88,37 @@ class EntCfgRelColunasDoc extends Entity
             $opcaoCampo[$selecionado] = '[' . ($dados['rct_tabela'] ?? '') . '] ' . ucwords(str_replace('_', ' ', $dados['rct_campo']));
         }
 
+        // Campo vinculado é OPCIONAL (igual ao Rodapé) — a opção vazia
+        // permite ficar só com o texto digitado (my_relatorio.js mantém essa
+        // opção ao repopular o select).
+        $selecionado = $opcaoCampo ? array_key_first($opcaoCampo) : '';
+        $opcaoCampo  = ['' => '(Nenhum — só texto)'] + $opcaoCampo;
+
         $ret['rct_campo'] = (new MyCampo('cfg_rel_colunas_doc', 'rct_campo'))
-            ->setValor($opcaoCampo ? array_key_first($opcaoCampo) : '')
-            ->setSelecionado($opcaoCampo ? array_key_first($opcaoCampo) : '')
+            ->setValor($selecionado)
+            ->setSelecionado($selecionado)
             ->setOpcoes($opcaoCampo)
-            ->setObrigatorio()
             ->setOrdem($pos)
-            ->setDispForm('col-6 float-start')
+            ->setDispForm('col-4 float-start')
             ->setLargura(40)
             ->setLeitura($show)
             ->crSelect();
 
+        $texto = (new MyCampo('cfg_rel_colunas_doc', 'rct_texto'))
+            ->setLabel('Texto')
+            ->setValor($dados['rct_texto'] ?? '')
+            ->setOrdem($pos)
+            ->setDispForm('col-4 float-start')
+            ->setLeitura($show);
+        $texto->linhas = 1;
+        $ret['rct_texto'] = $texto->crTexto();
+
+        // Rótulo opcional (usuário, 2026-10-05) — vazio deixa o cabeçalho da coluna em branco.
         $ret['rct_label'] = (new MyCampo('cfg_rel_colunas_doc', 'rct_label'))
             ->setValor($dados['rct_label'] ?? '')
-            ->setObrigatorio()
-            ->setMinLength(3)
             ->setOrdem($pos)
-            ->setDispForm('col-3 float-start')
-            ->setLargura(30)
+            ->setDispForm('col-2 float-start')
+            ->setLargura(20)
             ->setLeitura($show)
             ->crInput();
 

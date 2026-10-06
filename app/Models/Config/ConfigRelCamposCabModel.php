@@ -20,6 +20,7 @@ class ConfigRelCamposCabModel extends Model
         'rel_id',
         'rcc_tabela',
         'rcc_campo',
+        'rcc_texto',
         'rcc_label',
         'rcc_tamanho',
         'rcc_tipo_dado',
@@ -29,9 +30,9 @@ class ConfigRelCamposCabModel extends Model
 
     protected $validationRules = [
         'rel_id'      => 'required|integer',
-        'rcc_tabela'  => 'required',
-        'rcc_campo'   => 'required',
-        // rcc_label opcional (usuário, 2026-09-23) — sem rótulo imprime só o valor
+        // rcc_label opcional (usuário, 2026-09-23) — sem rótulo imprime só o valor.
+        // rcc_texto e/ou rcc_campo (usuário, 2026-10-05) — "ao menos um dos
+        // dois" garantido em CfgRelatorio::_extrairCamposCabPost().
         'rcc_tamanho' => 'required|integer',
     ];
 

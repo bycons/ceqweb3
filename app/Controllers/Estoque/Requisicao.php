@@ -112,7 +112,7 @@ class Requisicao extends BaseController
 
         foreach ($dados_requis as $req) {
             if ($req->req_id) {
-                $req->usu_nome = buscaUsuarioLog($log[$req->req_id]);
+                $req->usu_nome = buscaUsuarioLog($log[$req->req_id] ?? []);
 
                 $dataBanco = new \DateTime($req->req_data);
                 $dataLimite = new \DateTime();
@@ -195,8 +195,9 @@ class Requisicao extends BaseController
         $campos[0][] = $fields['req_deppadrao'];
         $campos[0][] = $fields['req_depdestino'];
         $campos[0][] = "<div class='row col-12'>";
-        $campos[0][] = $fields['req_consdiaanterior'];
-        $campos[0][] = $fields['req_medconsumodias'];
+        $campos[0][] = $fields['req_tipoconsumo'];
+        $campos[0][] = $fields['req_consdiaanterior']; // oculto - valor real (S/N) pro Store
+        $campos[0][] = $fields['req_medconsumodias']; // oculto - valor real (S/N) pro Store
         $campos[0][] = $fields['req_meddias'];
         $campos[0][] = $fields['req_percseguranca'];
         $campos[0][] = '</div>';
@@ -225,7 +226,7 @@ class Requisicao extends BaseController
         $this->data['destino'] = 'store';
         $this->data['scripts'] = 'my_requisicao';
 
-        $this->data['script'] = "<script>mostraOcultaCampo('req_consdiaanterior', 'N', 'req_medconsumodias,req_meddias');mudaCheck2opcoes('req_consdiaanterior', 'req_medconsumodias');atualizarEstadoBotaoSalvar();</script>";
+        $this->data['script'] = "<script>mostraOcultaCampo('req_tipoconsumo', 'MEDIA', 'req_meddias');atualizarEstadoBotaoSalvar();</script>";
 
         echo view('vw_edicao', $this->data);
     }
@@ -698,23 +699,6 @@ class Requisicao extends BaseController
         );
         // debug($listaProdutos, true);
 
-        // ═══════════════════════════════════════════════════════════════════
-        // TEMPORÁRIO (2026-07-14): busca real de saldo via SOAP desabilitada.
-        // Atribui saldo fictício de 10000 para todos os produtos.
-        // Reverter removendo este bloco e descomentando o original abaixo.
-        // ═══════════════════════════════════════════════════════════════════
-        // $montaSaldoFicticioTemp = function () use ($listaProdutos): array {
-        //     $fake = [];
-        //     foreach ($listaProdutos as $p) {
-        //         $lote = trim($p->lot_lote ?? '');
-        //         $fake[] = (object) [
-        //             'codigoProduto'     => $p->pro_codpro,
-        //             'codigoLote'        => $lote !== '' ? $lote : 'SEM_LOTE',
-        //             'quantidadeEstoque' => 10000,
-        //         ];
-        //     }
-        //     return $fake;
-        // };
 
         // ESTOQUES
         envia_msg_ws($this->data['controler'], 'Buscando estoque de origem', 'MsgServer', session()->get('usu_id'), 1);
@@ -779,6 +763,9 @@ class Requisicao extends BaseController
                 ['inicio' => $inicio, 'final' => $ontem],
                 'get'
             );
+
+            // debug(LINK_CEQWEB2 . $endpoint);
+            // debug($res, true);
 
             if ($res) {
                 // $consumo[$tipo] = indexarConsumo($res);
@@ -962,7 +949,7 @@ class Requisicao extends BaseController
             // === Base de consumo ===
             // debug($prod);
             if ($prod['pro_primeiro'] === 1) {
-                $produto->pro_consumo = ($prod['pro_meddias'] > 0)
+                $produto->pro_consumo = ($prod['pro_mediaconsumo'] === 'S' && $prod['pro_meddias'] > 0)
                     ? $produto->pro_consumo_medio
                     : $produto->pro_consumo_diaant;
                 $produto->pro_consumo_proximo = 0;

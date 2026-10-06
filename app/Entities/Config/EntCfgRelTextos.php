@@ -25,6 +25,9 @@ class EntCfgRelTextos extends Entity
         'rtx_campo'  => null,
         'rtx_texto'  => null,
         'rtx_label'  => null,
+        // Largura no grid igual ao Cabeçalho (usuário, 2026-10-05) — default
+        // linha inteira, como o Rodapé era impresso até então.
+        'rtx_largura_col' => 'col-12',
         'rtx_ordem'  => 0,
     ];
 
@@ -85,19 +88,35 @@ class EntCfgRelTextos extends Entity
         $texto = (new MyCampo('cfg_rel_textoslivres', 'rtx_texto'))
             ->setValor($dados['rtx_texto'] ?? '')
             ->setOrdem($pos)
-            ->setDispForm('col-5 float-start')
+            ->setDispForm('col-4 float-start')
             ->setLeitura($show);
-        $texto->linhas = 2;
+        $texto->linhas = 1;
         $ret['rtx_texto'] = $texto->crTexto();
 
         // Rótulo opcional (usuário, 2026-09-23).
         $ret['rtx_label'] = (new MyCampo('cfg_rel_textoslivres', 'rtx_label'))
             ->setValor($dados['rtx_label'] ?? '')
             ->setOrdem($pos)
-            ->setDispForm('col-3 float-start')
-            ->setLargura(30)
+            ->setDispForm('col-2 float-start')
+            ->setLargura(20)
             ->setLeitura($show)
             ->crInput();
+
+        // Largura igual ao Cabeçalho (EntCfgRelCamposCab::rcc_largura_col).
+        $ret['rtx_largura_col'] = (new MyCampo('cfg_rel_textoslivres', 'rtx_largura_col'))
+            ->setLabel('Largura')
+            ->setValor($dados['rtx_largura_col'] ?? 'col-12')
+            ->setSelecionado($dados['rtx_largura_col'] ?? 'col-12')
+            ->setOpcoes([
+                'col-3'  => '1/4 da linha',
+                'col-4'  => '1/3 da linha',
+                'col-6'  => '1/2 da linha',
+                'col-12' => 'Linha inteira',
+            ])
+            ->setOrdem($pos)
+            ->setDispForm('col-2 float-start')
+            ->setLeitura($show)
+            ->crSelect();
 
         // Botões
         $atrib = ['data-index' => $pos];

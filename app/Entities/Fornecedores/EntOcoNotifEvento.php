@@ -87,10 +87,12 @@ class EntOcoNotifEvento extends Entity
         $fabricacao->dispForm    = 'col-3';
         $ret['nev_fabricacao'] = $fabricacao->crInput();
 
-        // ---- Providências ----
+        // ---- Providências / Parecer Final ----
+        // Não obrigatórios na inclusão: só Dados Gerais é obrigatório; as
+        // demais abas vão sendo preenchidas conforme a notificação evolui.
         $providencias              = new MyCampo('oco_notif_evento', 'nev_providencias');
         $providencias->valor       = $dados['nev_providencias'] ?? '';
-        $providencias->obrigatorio = true;
+        $providencias->obrigatorio = false;
         $providencias->leitura     = $show;
         $providencias->minimo      = 5;
         $providencias->maximo      = 500;
@@ -101,7 +103,7 @@ class EntOcoNotifEvento extends Entity
 
         $notificado              = new MyCampo('oco_notif_evento', 'nev_notificado');
         $notificado->valor       = $dados['nev_notificado'] ?? '';
-        $notificado->obrigatorio = true;
+        $notificado->obrigatorio = false;
         $notificado->leitura     = $show;
         $notificado->minimo      = 5;
         $notificado->maximo      = 200;
@@ -111,7 +113,7 @@ class EntOcoNotifEvento extends Entity
         // ---- Parecer Final ----
         $parecer              = new MyCampo('oco_notif_evento', 'nev_parecer');
         $parecer->valor       = $dados['nev_parecer'] ?? '';
-        $parecer->obrigatorio = true;
+        $parecer->obrigatorio = false;
         $parecer->leitura     = $show;
         $parecer->minimo      = 5;
         $parecer->maximo      = 500;

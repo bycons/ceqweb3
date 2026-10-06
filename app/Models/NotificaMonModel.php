@@ -15,6 +15,7 @@ class NotificaMonModel
 	{
 		$mongodb = new MongoDb();
 		$this->conn = $mongodb->getConn();
+		$this->database = MongoDb::database();
 	}
 
 	/**

@@ -6,7 +6,7 @@ class LogsMongoModel
     private $logMongo;
     public function __construct()
     {
-        $this->logMongo = (new \MongoDB\Client)->MongoDB->Logs;
+        $this->logMongo = (new \MongoDB\Client)->{\App\Libraries\MongoDb::database()}->Logs;
     }
 
     /**

@@ -22,6 +22,7 @@ class ConfigRelTextosModel extends Model
         'rtx_campo',
         'rtx_texto',
         'rtx_label',
+        'rtx_largura_col',
         'rtx_ordem',
     ];
 

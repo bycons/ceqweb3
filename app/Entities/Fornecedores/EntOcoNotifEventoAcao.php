@@ -57,6 +57,8 @@ class EntOcoNotifEventoAcao extends Entity
         $config['Largura']  = 50;
         $config['Ordem']    = $pos;
         $config['FunChan']  = 'verificaTipoAcao(this)';
+        // Ação não é obrigatória na inclusão da notificação (só Dados Gerais).
+        $config['Obrigatorio'] = false;
 
         $ret['tpa_id'] = criaSelectRelativo(
             'oco_tipo_acao',
@@ -70,6 +72,7 @@ class EntOcoNotifEventoAcao extends Entity
         );
 
         // tipo de movimentação (visível quando tpa_tipo = 3, via verificaTipoAcao())
+        unset($config['Obrigatorio']); // mantém o comportamento anterior de tmo_id/stt_id
         $config['Label']    = 'Tipo de Movimentação';
         $config['FunChan']  = '';
         $config['DispForm'] = 'col-12';
